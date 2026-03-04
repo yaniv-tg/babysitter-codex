@@ -1,0 +1,19 @@
+{
+  "name": "repos",
+  "version": "1.0.0",
+  "description": "Babysitter-Codex integration: orchestrates iterative AI coding loops with guard rails, effect mapping, and result posting via the babysitter SDK",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --check .codex/*.js .codex/hooks/*.js && node -e \"require('./.codex/orchestrate.js')\" && test -f AGENTS.md && echo 'All checks passed.'",
+    "orchestrate": "node .codex/orchestrate.js",
+    "loop-control": "sh .codex/hooks/loop-control.sh",
+    "lint": "node --check .codex/*.js .codex/hooks/*.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@a5c-ai/babysitter": "^0.0.175",
+    "@a5c-ai/babysitter-sdk": "^0.0.173"
+  }
+}
