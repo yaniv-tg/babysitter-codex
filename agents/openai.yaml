@@ -1,0 +1,3 @@
+display_name: Babysitter
+short_description: Orchestrate multi-step AI workflows with quality convergence
+default_prompt: /babysitter:help

@@ -1,23 +1,14 @@
 # =============================================================================
 # Babysitter-Codex Integration Configuration
-# Version: 1.0.0
-# Description: Configures the Codex CLI sandbox and MCP server for babysitter
-#              orchestration, including permissions and run directory settings.
+# Version: 1.0.1
+# Description: Configures the Codex CLI for babysitter orchestration,
+#              including permissions, hooks, and run directory settings.
 # =============================================================================
 
-# Babysitter MCP Server Integration
-# Declares the babysitter SDK as a Model Context Protocol (MCP) server.
-# Codex will launch this server via npx and connect to it over stdio so that
-# the model can call babysitter tools (run:status, task:update, etc.) directly.
-[mcp_servers.babysitter]
-command = "npx"                                        # Use npx to run the SDK without a global install
-args = ["-y", "@a5c-ai/babysitter-sdk@0.0.173", "mcp-server"]  # -y auto-confirms install; mcp-server starts the MCP listener
-
-# Environment variables forwarded to the MCP server process.
-# BABYSITTER_RUNS_DIR tells the SDK where run state, logs, and task outputs
-# are stored relative to the repository root.
-[mcp_servers.babysitter.env]
-BABYSITTER_RUNS_DIR = ".a5c/runs"  # Root directory for all run-scoped data (state, logs, outputs)
+# NOTE: The babysitter SDK is a CLI tool, not an MCP server.
+# Orchestration is driven via shell hooks and the `babysitter` CLI binary,
+# not through an MCP server connection. The hooks below invoke the CLI
+# commands (run:iterate, task:post, etc.) directly.
 
 # Sandbox configuration
 # Controls what the Codex agent process is allowed to read and write on disk.
