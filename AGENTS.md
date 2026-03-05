@@ -29,14 +29,17 @@ For each pending task loaded from the run context:
 2. Identify the `effectType` and `payload` fields in the task definition.
 3. Dispatch the effect using the appropriate tool:
 
-| effectType        | Tool / Action                                           |
-|-------------------|---------------------------------------------------------|
-| `agent`           | Build a prompt from the agent definition and run via Codex exec |
-| `node`            | Execute the specified Node.js script                    |
-| `shell`           | Execute the command via the shell tool                  |
-| `breakpoint`      | Pause and wait for user input (handled by runtime)      |
-| `sleep`           | Wait for the specified duration (handled by runtime)    |
-| `skill`           | Invoke a named skill with parameters via Codex exec     |
+| effectType           | Tool / Action                                                        |
+|----------------------|----------------------------------------------------------------------|
+| `agent`              | Build a prompt from the agent definition and run via Codex exec      |
+| `node`               | Execute the specified Node.js script                                 |
+| `shell`              | Execute the command via the shell tool                               |
+| `breakpoint`         | Pause and wait for user input (handled by runtime)                   |
+| `sleep`              | Wait for the specified duration (handled by runtime)                 |
+| `skill`              | Invoke a named skill with parameters via Codex exec                  |
+| `hook`               | Invoke a named lifecycle hook handler (see Section 8)                |
+| `parallel`           | Execute multiple sub-effects concurrently and collect all results    |
+| `orchestrator_task`  | Dispatch a sub-task to a nested orchestrator instance                |
 
 4. Capture all outputs (stdout, stderr, return codes, file contents) for use in the result.
 
@@ -148,3 +151,232 @@ Communication contract:
 ```
 
 All paths above are relative to the repository root.
+
+---
+
+## 8. Hook Types
+
+The SDK supports 13 lifecycle hook types that are invoked at specific points in the
+orchestration flow. Hook handlers live under `.codex/hooks/<hook-name>/` and are executed
+as shell scripts or Node.js scripts.
+
+| Hook Name            | Trigger Point                                                       |
+|----------------------|---------------------------------------------------------------------|
+| `on-run-start`       | Fired once when a new run is created and about to begin             |
+| `on-run-complete`    | Fired once when all tasks in a run finish successfully              |
+| `on-run-fail`        | Fired once when a run terminates due to an unrecoverable error      |
+| `on-task-start`      | Fired before each individual task effect is dispatched              |
+| `on-task-complete`   | Fired after each task effect completes (success or handled failure) |
+| `on-step-dispatch`   | Fired each time a single step (sub-unit of a task) is dispatched   |
+| `on-iteration-start` | Fired at the start of every wrapper iteration loop                  |
+| `on-iteration-end`   | Fired at the end of every wrapper iteration loop                    |
+| `on-breakpoint`      | Fired when execution pauses at a `breakpoint` effect                |
+| `pre-commit`         | Fired before any git commit is created during task execution        |
+| `pre-branch`         | Fired before a new git branch is created during task execution      |
+| `post-planning`      | Fired after the orchestrator finishes its planning phase            |
+| `on-score`           | Fired when a scoring / evaluation result is produced                |
+
+Hook payloads are passed as JSON via stdin. Hooks must exit with code `0` to allow
+execution to continue; a non-zero exit code causes the run to fail with `on-run-fail`.
+
+---
+
+## 9. Profile System
+
+Profiles store persistent per-user or per-project configuration that the SDK CLI can read,
+write, merge, and render.
+
+### Reading a profile
+
+```bash
+# Read user-level profile
+npx -y @a5c-ai/babysitter-sdk@0.0.173 profile:read --user --json
+
+# Read project-level profile (relative to repo root)
+npx -y @a5c-ai/babysitter-sdk@0.0.173 profile:read --project --json
+```
+
+### Writing a profile
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 profile:write --user --json < profile-patch.json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 profile:write --project --json < profile-patch.json
+```
+
+### Merging profiles
+
+Merge user and project profiles into a single resolved profile object:
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 profile:merge --json
+```
+
+### Rendering a profile
+
+Render the active profile as human-readable text (useful for debugging):
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 profile:render
+```
+
+---
+
+## 10. Skill Discovery
+
+### Discovering local skills
+
+```bash
+# Discover skills under the default plugin root
+npx -y @a5c-ai/babysitter-sdk@0.0.173 skill:discover --json
+
+# Discover skills under a custom plugin root directory
+npx -y @a5c-ai/babysitter-sdk@0.0.173 skill:discover --plugin-root ./my-plugins --json
+```
+
+`skill:discover` scans the plugin root for skill manifests and returns a JSON array of
+available skill definitions including name, description, and parameter schema.
+
+### Fetching a remote skill
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 skill:fetch-remote <skillUrl> --json
+```
+
+Downloads and registers a remotely hosted skill definition so it can be invoked locally.
+
+---
+
+## 11. Session Management
+
+Session commands manage the lifecycle of agent sessions within a run.
+
+### Associating a session with a run
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:associate --run-id <RUN_ID> --session-id <SESSION_ID> --json
+```
+
+### Resuming a session
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:resume --run-id <RUN_ID> --json
+```
+
+### Checking iteration state
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:check-iteration --run-id <RUN_ID> --json
+```
+
+Returns whether the current iteration should continue or halt, based on run state.
+
+### Posting an iteration message
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:iteration-message --run-id <RUN_ID> --message "<text>" --json
+```
+
+### Reading the last session message
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:last-message --run-id <RUN_ID> --json
+```
+
+### Updating session metadata
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:update --run-id <RUN_ID> --json < session-patch.json
+```
+
+---
+
+## 12. Health and Configuration
+
+### Babysitter health check
+
+```bash
+# Basic health check
+npx -y @a5c-ai/babysitter-sdk@0.0.173 babysitter health
+
+# Verbose output (shows individual component status)
+npx -y @a5c-ai/babysitter-sdk@0.0.173 babysitter health --verbose
+
+# Machine-readable JSON output
+npx -y @a5c-ai/babysitter-sdk@0.0.173 babysitter health --verbose --json
+```
+
+### Configuration commands
+
+```bash
+# Show the resolved active configuration
+npx -y @a5c-ai/babysitter-sdk@0.0.173 configure show
+
+# Validate the configuration for errors or missing required fields
+npx -y @a5c-ai/babysitter-sdk@0.0.173 configure validate
+
+# Show all configuration file paths that are being loaded
+npx -y @a5c-ai/babysitter-sdk@0.0.173 configure paths
+```
+
+---
+
+## 13. Run Commands
+
+### Rebuilding run state from journal
+
+If run state becomes inconsistent, rebuild it from the append-only journal:
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 run:rebuild-state --run-id <RUN_ID> --json
+```
+
+### Repairing a corrupted journal
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 run:repair-journal --run-id <RUN_ID> --json
+```
+
+Attempts to detect and remove corrupted entries from the run journal so the run can
+continue.
+
+### Executing tasks directly
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 run:execute-tasks --run-id <RUN_ID> --json
+```
+
+Forces immediate execution of all pending tasks in the specified run, bypassing normal
+iteration scheduling.
+
+---
+
+## 14. Task Commands
+
+### Inspecting a task
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 task:show <runDir> <effectId>
+```
+
+Displays the full task definition and current status for the given effect ID within the
+specified run directory.
+
+### Posting a task result (full format)
+
+```bash
+# Success
+npx -y @a5c-ai/babysitter-sdk@0.0.173 task:post <runDir> <effectId> --status ok --value <file> --json
+
+# Failure
+npx -y @a5c-ai/babysitter-sdk@0.0.173 task:post <runDir> <effectId> --status error --error <file> --json
+```
+
+| Argument / Flag   | Description                                                        |
+|-------------------|--------------------------------------------------------------------|
+| `<runDir>`        | Path to the run directory, e.g. `.a5c/runs/01KJXM7MAC90ZTG885NDHJJSWB` |
+| `<effectId>`      | The ULID of the task/effect being completed                        |
+| `--status ok`     | Mark the task as successfully completed                            |
+| `--status error`  | Mark the task as failed                                            |
+| `--value <file>`  | Path to the `output.json` file (used with `--status ok`)           |
+| `--error <file>`  | Path to the error JSON file (used with `--status error`)           |
+| `--json`          | Emit the response as machine-readable JSON                         |

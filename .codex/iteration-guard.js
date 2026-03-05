@@ -16,6 +16,7 @@
 const fs = require('fs');
 const path = require('path');
 const { readSessionContext } = require('./hooks/utils.js');
+const { checkIteration, updateSession } = require('./session-manager');
 
 // ---------------------------------------------------------------------------
 // Constants / defaults
@@ -125,6 +126,33 @@ async function checkIterationGuard(runDir, options) {
 }
 
 // ---------------------------------------------------------------------------
+// 1b. checkSessionGuard
+// ---------------------------------------------------------------------------
+
+/**
+ * Delegate to the session-manager's checkIteration() to determine whether
+ * the SDK wants the orchestration loop to continue.
+ *
+ * @returns {Promise<{ halt: boolean, reason: string|null }|null>}
+ *   null  → guard is not applicable (CLI unavailable)
+ *   { halt: false } → SDK says continue
+ *   { halt: true, reason: 'session-check-iteration' } → SDK says stop
+ */
+async function checkSessionGuard() {
+  try {
+    const result = await checkIteration();
+    if (result && result.shouldContinue === false) {
+      return { halt: true, reason: 'session-check-iteration' };
+    }
+    return { halt: false, reason: null };
+  } catch (err) {
+    // If the CLI / SDK is not available, skip this guard gracefully.
+    console.warn('[iteration-guard] checkSessionGuard skipped (CLI not available):', err.message);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 2. checkTimeGuard
 // ---------------------------------------------------------------------------
 
@@ -206,6 +234,42 @@ async function checkTimeGuard(runDir, options) {
     warning = `Hard time limit exceeded: elapsed ${Math.round(elapsed / 1000)}s >= ${Math.round(hardStop / 1000)}s (2x timeout). Halting.`;
   } else if (elapsed >= timeout) {
     warning = `Timeout threshold reached: elapsed ${Math.round(elapsed / 1000)}s >= ${Math.round(timeout / 1000)}s. Wrapping up soon.`;
+  }
+
+  // Runaway loop detection: track per-iteration timestamps and flag if average
+  // iteration time is suspiciously short (< 3 seconds).
+  if (allowed) {
+    const tsFile = path.join(stateDir, 'iteration-timestamps.json');
+    let tsData = readJsonFile(tsFile);
+    if (!tsData || !Array.isArray(tsData.timestamps)) {
+      tsData = { timestamps: [] };
+    }
+
+    tsData.timestamps.push(now);
+
+    // Keep only the last 20 timestamps to avoid unbounded growth.
+    if (tsData.timestamps.length > 20) {
+      tsData.timestamps = tsData.timestamps.slice(-20);
+    }
+
+    writeJsonAtomic(tsFile, tsData);
+
+    const timestamps = tsData.timestamps;
+    if (timestamps.length >= 2) {
+      // Calculate average gap between consecutive iterations (ms).
+      let totalGap = 0;
+      for (let i = 1; i < timestamps.length; i++) {
+        totalGap += timestamps[i] - timestamps[i - 1];
+      }
+      const avgGapMs = totalGap / (timestamps.length - 1);
+      const avgGapSec = avgGapMs / 1000;
+
+      if (avgGapSec < 3) {
+        allowed = false;
+        warning = `Runaway loop detected: average iteration time ${avgGapSec.toFixed(2)}s < 3s threshold over last ${timestamps.length} iterations. Halting.`;
+        return { allowed, elapsed, timeout, warning, runawaySuspected: true, reason: 'runaway-loop-detected' };
+      }
+    }
   }
 
   return { allowed, elapsed, timeout, warning };
@@ -358,11 +422,32 @@ async function checkStallGuard(runDir, options) {
 }
 
 // ---------------------------------------------------------------------------
+// 5a. checkIterationMetadata
+// ---------------------------------------------------------------------------
+
+/**
+ * Inspect iteration metadata returned by the SDK and emit warnings for
+ * notable conditions such as a rebuilt session state.
+ *
+ * @param {object|null} metadata - Metadata object from the SDK / session-manager
+ * @returns {{ stateRebuilt: boolean }|null} null when metadata is absent
+ */
+function checkIterationMetadata(metadata) {
+  if (!metadata) return null;
+  if (metadata.stateRebuilt) {
+    console.warn('[iteration-guard] State was rebuilt:', metadata.stateRebuildReason);
+  }
+  return { stateRebuilt: !!metadata.stateRebuilt };
+}
+
+// ---------------------------------------------------------------------------
 // 5. runAllGuards
 // ---------------------------------------------------------------------------
 
 /**
- * Run all four guards in parallel and return a combined result.
+ * Run all guards (session guard first, then the four core guards) and return
+ * a combined result.  After evaluating all guards the current session is
+ * updated via updateSession() so the SDK can track iteration progress.
  *
  * @param {string} runDir
  * @param {object} [options] - Passed through to each individual guard
@@ -371,6 +456,21 @@ async function checkStallGuard(runDir, options) {
 async function runAllGuards(runDir, options) {
   if (!options) options = {};
 
+  // --- Session guard runs first (before custom / core guards) ---------------
+  const sessionGuardResult = await checkSessionGuard().catch(function (err) {
+    console.warn('[iteration-guard] checkSessionGuard unexpected error:', err.message);
+    return null;
+  });
+
+  if (sessionGuardResult && sessionGuardResult.halt) {
+    return {
+      allowed: false,
+      guards: { session: sessionGuardResult },
+      warnings: [`Session guard halted orchestration: ${sessionGuardResult.reason}`],
+    };
+  }
+
+  // --- Core guards run in parallel ------------------------------------------
   const results = await Promise.all([
     checkIterationGuard(runDir, options).catch(function (err) {
       return {
@@ -411,24 +511,33 @@ async function runAllGuards(runDir, options) {
   const cost = results[2];
   const stall = results[3];
 
-  const guards = { iteration, time, cost, stall };
+  const guards = { session: sessionGuardResult, iteration, time, cost, stall };
 
   // Collect all non-null warnings
   const warnings = Object.values(guards)
-    .map(function (g) { return g.warning; })
+    .map(function (g) { return g && g.warning; })
     .filter(function (w) { return w !== null && w !== undefined; });
 
   // Overall allowed only if every guard permits
   const allowed = iteration.allowed && time.allowed && cost.allowed && stall.allowed;
+
+  // --- Update session with current iteration progress -----------------------
+  const currentIteration = iteration.current || 0;
+  updateSession({ iteration: currentIteration, lastIterationAt: new Date().toISOString() })
+    .catch(function (err) {
+      console.warn('[iteration-guard] updateSession failed (non-fatal):', err.message);
+    });
 
   return { allowed, guards, warnings };
 }
 
 module.exports = {
   checkIterationGuard,
+  checkSessionGuard,
   checkTimeGuard,
   checkCostGuard,
   checkStallGuard,
+  checkIterationMetadata,
   runAllGuards,
   readSessionContext,
 };

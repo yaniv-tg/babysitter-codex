@@ -14,12 +14,17 @@
  *     [--plugin-root <path>]
  */
 
-const { execSync, execFileSync, spawnSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 const fs   = require('fs');
 const path = require('path');
 const { mapEffectToCodexPrompt, parseCodexOutput, mapCodexError, buildCodexArgs } = require('./effect-mapper.js');
 const { postTaskResult, postTaskError } = require('./result-poster.js');
 const { runAllGuards } = require('./iteration-guard.js');
+const { fireHook } = require('./hook-dispatcher');
+const { readUserProfile, readProjectProfile } = require('./profile-manager');
+const { discoverSkills } = require('./discovery');
+const { associateSession, checkIteration, getIterationMessage, updateSession } = require('./session-manager');
+const { runStartupHealthGate } = require('./health-check');
 
 // ---------------------------------------------------------------------------
 // 1. Parse CLI arguments
@@ -180,6 +185,34 @@ async function waitForStdinInput(question) {
 }
 
 // ---------------------------------------------------------------------------
+// PID-based run lock
+// ---------------------------------------------------------------------------
+
+let lockFile = null;
+
+function acquireLock() {
+  // Check for stale lock from a crashed process
+  if (lockFile && fs.existsSync(lockFile)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
+      let isAlive = false;
+      try { process.kill(existing.pid, 0); isAlive = true; } catch { /* process not running */ }
+      if (isAlive) {
+        console.error(`[orchestrate] Run is locked by PID ${existing.pid} (acquired at ${existing.acquiredAt}). Aborting.`);
+        process.exit(1);
+      }
+      console.warn(`[orchestrate] Stale lock detected from PID ${existing.pid}. Overwriting.`);
+    } catch { /* corrupt lock file, safe to overwrite */ }
+  }
+  const lockData = JSON.stringify({ pid: process.pid, owner: 'orchestrate.js', acquiredAt: new Date().toISOString() });
+  fs.writeFileSync(lockFile, lockData);
+}
+
+function releaseLock() {
+  try { if (lockFile) fs.unlinkSync(lockFile); } catch {}
+}
+
+// ---------------------------------------------------------------------------
 // Main orchestration loop
 // ---------------------------------------------------------------------------
 
@@ -190,6 +223,14 @@ async function main() {
   console.log('[orchestrate] Config:', JSON.stringify(args, null, 2));
 
   const projectDir = process.cwd();
+  const repoRoot   = projectDir;
+
+  // Run startup health gate before anything else
+  if (!runStartupHealthGate(true)) { process.exit(1); }
+
+  // Read user and project profiles
+  const userProfile    = readUserProfile();
+  const projectProfile = readProjectProfile(repoRoot);
 
   // Resolve runs directory (may be relative to projectDir)
   const runsDir = path.isAbsolute(args.runsDir)
@@ -241,6 +282,15 @@ async function main() {
     process.exit(1);
   }
 
+  // Associate session with this run
+  try { associateSession(runId); } catch (e) { console.warn('[orchestrate] session:associate failed:', e.message); }
+
+  // Discover available skills
+  const discovered = discoverSkills({ pluginRoot: process.env.CLAUDE_PLUGIN_ROOT });
+
+  // Fire on-run-start hook
+  fireHook('on-run-start', { runId, processId: args.processId });
+
   // -------------------------------------------------------------------------
   // 4. Main iteration loop
   // -------------------------------------------------------------------------
@@ -249,9 +299,18 @@ async function main() {
   let completionProof = null;
   let finalStatus     = 'running';
 
+  // Set up and acquire PID-based run lock (inside try so releaseLock runs in finally)
+  lockFile = path.join(runDir, 'run.lock');
+
+  try {
+  acquireLock();
+
   while (iteration < args.maxIterations) {
     iteration++;
     console.log(`\n[orchestrate] === Iteration ${iteration} / ${args.maxIterations} ===`);
+
+    // Fire on-iteration-start hook
+    fireHook('on-iteration-start', { iteration, runId });
 
     // Run iteration guards from the standalone module
     if (runDir) {
@@ -359,6 +418,9 @@ async function main() {
 
       console.log(`[orchestrate] Agent prompt (truncated): ${agentPrompt.slice(0, 120)}`);
 
+      // Fire on-task-start hook before executing the effect
+      fireHook('on-task-start', { effectId: task.effectId, kind });
+
       // 4d–4e. Spawn codex exec and parse output (uses buildCodexArgs via runCodexExec)
       const codexResult = runCodexExec(agentPrompt, projectDir, task);
 
@@ -379,6 +441,8 @@ async function main() {
           };
           await postTaskResult(runDir, effectId, outputPayload);
           console.log(`[orchestrate] task:post (ok) succeeded for ${effectId}`);
+          // Fire on-task-complete hook after posting result
+          fireHook('on-task-complete', { effectId: task.effectId, kind, status: 'ok' });
         } else {
           const errorResult = mapCodexError(codexResult.exitCode, codexResult.stderr);
           await postTaskError(runDir, effectId, {
@@ -387,30 +451,47 @@ async function main() {
             details: codexResult.stderr,
           });
           console.log(`[orchestrate] task:post (error) succeeded for ${effectId}`);
+          // Fire on-task-complete hook after posting error result
+          fireHook('on-task-complete', { effectId: task.effectId, kind, status: 'error' });
         }
       } catch (postErr) {
         console.error(`[orchestrate] task:post failed for ${effectId}: ${postErr.message}`);
       }
     }
+
+    // Fire on-iteration-end hook at end of each iteration
+    fireHook('on-iteration-end', { iteration, runId, status: iterateResult.status });
   }
 
   // -------------------------------------------------------------------------
   // 6. Report final status
   // -------------------------------------------------------------------------
 
-  if (finalStatus === 'running') {
-    finalStatus = 'max-iterations-reached';
-    console.warn(`\n[orchestrate] WARNING: Reached max iterations (${args.maxIterations}) without completion.`);
-  }
+    if (finalStatus === 'running') {
+      finalStatus = 'max-iterations-reached';
+      console.warn(`\n[orchestrate] WARNING: Reached max iterations (${args.maxIterations}) without completion.`);
+    }
 
-  console.log(`\n[orchestrate] === Orchestration finished ===`);
-  console.log(`[orchestrate] Status:          ${finalStatus}`);
-  console.log(`[orchestrate] Iterations run:  ${iteration}`);
-  if (completionProof) {
-    console.log(`[orchestrate] CompletionProof: ${JSON.stringify(completionProof)}`);
-  }
+    console.log(`\n[orchestrate] === Orchestration finished ===`);
+    console.log(`[orchestrate] Status:          ${finalStatus}`);
+    console.log(`[orchestrate] Iterations run:  ${iteration}`);
+    if (completionProof) {
+      console.log(`[orchestrate] CompletionProof: ${JSON.stringify(completionProof)}`);
+    }
 
-  process.exit(finalStatus === 'complete' ? 0 : 1);
+    if (finalStatus === 'complete') {
+      fireHook('on-run-complete', { runId, output: completionProof });
+    } else {
+      fireHook('on-run-fail', { runId, error: finalStatus });
+    }
+
+    process.exit(finalStatus === 'complete' ? 0 : 1);
+  } catch (err) {
+    fireHook('on-run-fail', { runId, error: err.message });
+    throw err;
+  } finally {
+    releaseLock();
+  }
 }
 
 // Only run main() when executed directly (not when require()'d)

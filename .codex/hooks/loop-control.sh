@@ -47,6 +47,13 @@ echo "[loop-control]   Repo root     : ${REPO_ROOT}"
 mkdir -p "${A5C_DIR}"
 
 # ---------------------------------------------------------------------------
+# Startup health check
+# ---------------------------------------------------------------------------
+echo "[loop-control] Running health check..."
+HEALTH_OUTPUT="$(npx -y @a5c-ai/babysitter-sdk@0.0.173 health --json 2>&1)" || true
+echo "[loop-control] Health: ${HEALTH_OUTPUT}"
+
+# ---------------------------------------------------------------------------
 # Step 1: Initialize babysitter session
 # ---------------------------------------------------------------------------
 echo "[loop-control] Initializing babysitter session..."
@@ -80,6 +87,12 @@ fi
 echo "[loop-control] Run ID: ${RUN_ID}"
 export BABYSITTER_RUN_ID="${RUN_ID}"
 
+# ---------------------------------------------------------------------------
+# Associate session with run
+# ---------------------------------------------------------------------------
+echo "[loop-control] Associating session with run..."
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:associate --run-id "${RUN_ID}" --json > /dev/null 2>&1 || echo "[loop-control] WARNING: session:associate failed (non-fatal)"
+
 # Persist run ID for hooks
 node "${HOOKS_DIR}/write-json.js" "${A5C_DIR}/current-run.json" \
   "runId=${RUN_ID}" \
@@ -108,6 +121,9 @@ while [ "${ITERATION}" -lt "${MAX_ITERATIONS}" ] && [ "${LOOP_DONE}" -eq 0 ]; do
   echo ""
   echo "[loop-control] ---- Iteration ${ITERATION}/${MAX_ITERATIONS} ----"
 
+  # Structured log: iteration start
+  printf '{"iteration":%d,"runId":"%s"}' "${ITERATION}" "${RUN_ID}" | npx -y @a5c-ai/babysitter-sdk@0.0.173 hook:log --hook-type on-iteration-start > /dev/null 2>&1 || true
+
   # Update iteration count in state file
   node "${HOOKS_DIR}/write-json.js" "${RUN_STATE_DIR}/state.json" \
     "iteration=${ITERATION}" \
@@ -115,6 +131,19 @@ while [ "${ITERATION}" -lt "${MAX_ITERATIONS}" ] && [ "${LOOP_DONE}" -eq 0 ]; do
     "updatedAt=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
   export CODEX_TURN_INDEX="${ITERATION}"
+
+  # ---------------------------------------------------------------------------
+  # session:check-iteration — runs before the iteration guard
+  # ---------------------------------------------------------------------------
+  echo "[loop-control] Checking session iteration limits..."
+  SESSION_CHECK="$(npx -y @a5c-ai/babysitter-sdk@0.0.173 session:check-iteration --json 2>&1)" || true
+  # Parse shouldContinue from output
+  SHOULD_CONTINUE="$(printf '%s' "${SESSION_CHECK}" | node "${HOOKS_DIR}/read-json.js" - shouldContinue 2>/dev/null || echo "true")"
+  if [ "${SHOULD_CONTINUE}" = "false" ]; then
+    echo "[loop-control] Session check-iteration says to stop."
+    LOOP_DONE=2
+    break
+  fi
 
   # -- Run the iteration guard --
   echo "[loop-control] Running iteration guard..."
@@ -132,6 +161,9 @@ while [ "${ITERATION}" -lt "${MAX_ITERATIONS}" ] && [ "${LOOP_DONE}" -eq 0 ]; do
   CODEX_OUTPUT_FILE="${A5C_DIR}/runs/${RUN_ID}/state/codex-output-${ITERATION}.json"
   CODEX_EXIT=0
 
+  # Record iteration start time for session:update timing
+  ITER_START_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
   # Run codex and capture output; tolerate non-zero exit so we can handle it
   codex exec --full-auto \
     --output json \
@@ -139,6 +171,9 @@ while [ "${ITERATION}" -lt "${MAX_ITERATIONS}" ] && [ "${LOOP_DONE}" -eq 0 ]; do
     > "${CODEX_OUTPUT_FILE}" 2>&1 || CODEX_EXIT=$?
 
   echo "[loop-control] codex exec exited with code: ${CODEX_EXIT}"
+
+  # Record iteration end time
+  ITER_END_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
   # -- Parse codex JSON output --
   CODEX_RESULT="(no output)"
@@ -151,11 +186,23 @@ while [ "${ITERATION}" -lt "${MAX_ITERATIONS}" ] && [ "${LOOP_DONE}" -eq 0 ]; do
   # Use a separate script to safely build JSON (avoids path injection in inline node -e)
   TASK_PAYLOAD="$(node "${HOOKS_DIR}/build-task-payload.js" "${CODEX_OUTPUT_FILE}" "${ITERATION}" "${CODEX_EXIT}" 2>/dev/null || printf '{"iteration":%d,"codexExitCode":%d,"output":"(json build error)"}' "${ITERATION}" "${CODEX_EXIT}")"
 
+  # Write payload to a temp file and use --value instead of --data
+  TASK_PAYLOAD_FILE="${A5C_DIR}/runs/${RUN_ID}/state/task-payload-${ITERATION}.json"
+  printf '%s' "${TASK_PAYLOAD}" > "${TASK_PAYLOAD_FILE}"
+
   npx -y @a5c-ai/babysitter-sdk@0.0.173 task:post \
-    --run-id "${RUN_ID}" \
+    ".a5c/runs/${RUN_ID}" \
+    "iteration-${ITERATION}" \
+    --status ok \
+    --value "state/task-payload-${ITERATION}.json" \
     --json \
-    --data "${TASK_PAYLOAD}" \
     > /dev/null 2>&1 || echo "[loop-control] WARNING: task:post failed (non-fatal)"
+
+  # -- Update session with timing info for this iteration --
+  npx -y @a5c-ai/babysitter-sdk@0.0.173 session:update \
+    --json \
+    --data "{\"iteration\":${ITERATION},\"iterationStartedAt\":\"${ITER_START_TS}\",\"iterationCompletedAt\":\"${ITER_END_TS}\",\"codexExitCode\":${CODEX_EXIT}}" \
+    > /dev/null 2>&1 || echo "[loop-control] WARNING: session:update failed (non-fatal)"
 
   # -- Notify turn-complete hook --
   echo "[loop-control] Running on-turn-complete hook..."
@@ -189,6 +236,9 @@ while [ "${ITERATION}" -lt "${MAX_ITERATIONS}" ] && [ "${LOOP_DONE}" -eq 0 ]; do
   if [ "${CODEX_EXIT}" -ne 0 ] && [ "${LOOP_DONE}" -eq 0 ]; then
     echo "[loop-control] WARNING: codex exec failed with exit code ${CODEX_EXIT}. Continuing loop." >&2
   fi
+
+  # Structured log: iteration end
+  printf '{"iteration":%d,"runId":"%s"}' "${ITERATION}" "${RUN_ID}" | npx -y @a5c-ai/babysitter-sdk@0.0.173 hook:log --hook-type on-iteration-end > /dev/null 2>&1 || true
 done
 
 # ---------------------------------------------------------------------------
@@ -219,6 +269,13 @@ elif [ "${LOOP_DONE}" -eq 3 ]; then
   echo "[loop-control] Run entered terminal failure state."
   FINAL_STATUS="run_failed"
   FINAL_EXIT=1
+fi
+
+# Structured log: run complete or run fail
+if [ "${FINAL_EXIT}" -eq 0 ]; then
+  printf '{"runId":"%s","status":"%s","iterations":%d}' "${RUN_ID}" "${FINAL_STATUS}" "${ITERATION}" | npx -y @a5c-ai/babysitter-sdk@0.0.173 hook:log --hook-type on-run-complete > /dev/null 2>&1 || true
+else
+  printf '{"runId":"%s","status":"%s","iterations":%d}' "${RUN_ID}" "${FINAL_STATUS}" "${ITERATION}" | npx -y @a5c-ai/babysitter-sdk@0.0.173 hook:log --hook-type on-run-fail > /dev/null 2>&1 || true
 fi
 
 # Write final summary

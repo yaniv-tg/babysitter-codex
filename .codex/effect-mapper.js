@@ -8,6 +8,8 @@
 
 'use strict';
 
+const { fireHook } = require('./hook-dispatcher.js');
+
 // ---------------------------------------------------------------------------
 // 1. mapEffectToCodexPrompt
 // ---------------------------------------------------------------------------
@@ -84,15 +86,20 @@ function mapEffectToCodexPrompt(taskDef) {
       return command ?? null;
     }
 
-    case 'breakpoint':
+    case 'breakpoint': {
       // Breakpoints are handled separately by the babysitter runtime.
+      // Fire the on-breakpoint hook so listeners can react before the pause.
+      const bpPayload = taskDef.breakpoint ?? taskDef.effect?.breakpoint ?? taskDef.payload ?? {};
+      fireHook('on-breakpoint', bpPayload);
       return null;
+    }
 
     case 'sleep':
       // Sleep/wait is handled by the babysitter runtime wait logic.
       return null;
 
     case 'skill': {
+      // Discovery integration available via ../discovery.js for dynamic skill resolution.
       const skill = taskDef.skill ?? taskDef.effect?.skill ?? {};
       const parts = [];
 
@@ -120,6 +127,70 @@ function mapEffectToCodexPrompt(taskDef) {
 
       if (skill.expectedOutput) {
         parts.push(`Expected output: ${skill.expectedOutput}`);
+      }
+
+      return parts.join('\n\n');
+    }
+
+    case 'hook': {
+      // Fires a named hook via the hook dispatcher.
+      const hookPayload = taskDef.hook ?? taskDef.effect?.hook ?? taskDef.payload ?? {};
+      const { hookType, payload: hookData } = hookPayload;
+      return fireHook(hookType, hookData);
+    }
+
+    case 'parallel': {
+      // Groups multiple effects for concurrent execution.
+      const parallelPayload = taskDef.parallel ?? taskDef.effect?.parallel ?? taskDef.payload ?? {};
+      const subEffects = parallelPayload.effects ?? [];
+      const subPrompts = subEffects
+        .map((subEffect) => mapEffectToCodexPrompt(subEffect))
+        .filter((p) => p != null);
+      if (subPrompts.length === 0) return null;
+      return subPrompts.join('\n\n---\n\n');
+    }
+
+    case 'orchestrator_task': {
+      // Delegates structured decision-making to a sub-orchestrator.
+      const ot = taskDef.orchestrator_task ?? taskDef.effect?.orchestrator_task ?? taskDef.payload ?? {};
+      const parts = [];
+
+      if (ot.objective) {
+        parts.push(`Objective: ${ot.objective}`);
+      }
+
+      if (ot.role) {
+        parts.push(`Orchestrator role: ${ot.role}`);
+      }
+
+      if (ot.context) {
+        const ctx =
+          typeof ot.context === 'string'
+            ? ot.context
+            : JSON.stringify(ot.context, null, 2);
+        parts.push(`Context:\n${ctx}`);
+      }
+
+      if (ot.subtasks) {
+        const subtasks = Array.isArray(ot.subtasks)
+          ? ot.subtasks.map((t, i) => `${i + 1}. ${typeof t === 'string' ? t : JSON.stringify(t)}`).join('\n')
+          : JSON.stringify(ot.subtasks, null, 2);
+        parts.push(`Subtasks:\n${subtasks}`);
+      }
+
+      if (ot.constraints) {
+        const constraints = Array.isArray(ot.constraints)
+          ? ot.constraints.map((c, i) => `${i + 1}. ${c}`).join('\n')
+          : ot.constraints;
+        parts.push(`Constraints:\n${constraints}`);
+      }
+
+      if (ot.outputFormat) {
+        const fmt =
+          typeof ot.outputFormat === 'string'
+            ? ot.outputFormat
+            : JSON.stringify(ot.outputFormat, null, 2);
+        parts.push(`Output format:\n${fmt}`);
       }
 
       return parts.join('\n\n');
@@ -227,7 +298,10 @@ function buildCodexArgs(taskDef, options) {
 
   // --json: emit structured JSON output when a schema is present or explicitly requested
   const hasSchema =
-    taskDef?.outputSchema ?? taskDef?.agent?.outputSchema ?? false;
+    taskDef?.outputSchema ??
+    taskDef?.agent?.outputSchema ??
+    taskDef?.orchestrator_task?.outputFormat ??
+    false;
   const wantJson = options.jsonOutput ?? Boolean(hasSchema);
   if (wantJson) {
     args.push('--json');
@@ -238,6 +312,7 @@ function buildCodexArgs(taskDef, options) {
     taskDef?.model ??
     taskDef?.agent?.model ??
     taskDef?.skill?.model ??
+    taskDef?.orchestrator_task?.model ??
     options.model ??
     null;
   if (model) {
@@ -288,6 +363,13 @@ function batchEffects(effects) {
     idToIndex.set(id, idx);
   });
 
+  // Group effects that share a schedulerHints.parallelGroupId into the same
+  // synthetic parallel batch before normal dependency-level processing.
+  // Effects with the same parallelGroupId are treated as having no inter-
+  // dependencies and are placed at the same level.
+  const parallelGroupLevels = new Map(); // groupId -> assigned level
+  let nextParallelLevel = 0; // will be re-anchored after dep resolution
+
   // Compute the batch level for each effect (longest dependency chain).
   const levels = new Array(effects.length).fill(null);
 
@@ -295,6 +377,17 @@ function batchEffects(effects) {
     if (levels[idx] !== null) return levels[idx];
 
     const effect = effects[idx];
+
+    // Honour explicit parallelGroupId: all effects sharing a group run together.
+    const groupId = effect.schedulerHints?.parallelGroupId ?? null;
+    if (groupId !== null) {
+      if (!parallelGroupLevels.has(groupId)) {
+        parallelGroupLevels.set(groupId, nextParallelLevel++);
+      }
+      levels[idx] = parallelGroupLevels.get(groupId);
+      return levels[idx];
+    }
+
     const deps = [
       ...(effect.dependsOn ?? []),
       ...(effect.after ?? []),

@@ -21,6 +21,12 @@ npx -y @a5c-ai/babysitter-sdk@0.0.173 task:post <runDir> <effectId> --status ok 
 npx -y @a5c-ai/babysitter-sdk@0.0.173 task:post <runDir> <effectId> --status error --error <errorPath> --json
 ```
 
+### Showing a task definition
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 task:show <runDir> <effectId>
+```
+
 ### Listing tasks for a run
 
 ```bash
@@ -45,10 +51,105 @@ npx -y @a5c-ai/babysitter-sdk@0.0.173 run:create --json --process-id <PROCESS_ID
 npx -y @a5c-ai/babysitter-sdk@0.0.173 run:iterate <runDir> --json --iteration <N>
 ```
 
+### Rebuilding run state
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 run:rebuild-state --run-id <RUN_ID> --json
+```
+
+### Repairing a run journal
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 run:repair-journal --run-id <RUN_ID> --json
+```
+
+### Executing pending tasks directly
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 run:execute-tasks --run-id <RUN_ID> --json
+```
+
 ### Initializing a session
 
 ```bash
 npx -y @a5c-ai/babysitter-sdk@0.0.173 session:init --json
+```
+
+### Associating a session with a run
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:associate --run-id <RUN_ID> --session-id <SESSION_ID> --json
+```
+
+### Resuming a session
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:resume --run-id <RUN_ID> --json
+```
+
+### Checking iteration state
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:check-iteration --run-id <RUN_ID> --json
+```
+
+### Posting an iteration message
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:iteration-message --run-id <RUN_ID> --message "<text>" --json
+```
+
+### Reading the last session message
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:last-message --run-id <RUN_ID> --json
+```
+
+### Updating session metadata
+
+```bash
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:update --run-id <RUN_ID> --json < session-patch.json
+```
+
+### Profile commands
+
+```bash
+# Read user or project profile
+npx -y @a5c-ai/babysitter-sdk@0.0.173 profile:read --user --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 profile:read --project --json
+
+# Write profile
+npx -y @a5c-ai/babysitter-sdk@0.0.173 profile:write --user --json < profile-patch.json
+
+# Merge user + project profiles
+npx -y @a5c-ai/babysitter-sdk@0.0.173 profile:merge --json
+
+# Render active profile as human-readable text
+npx -y @a5c-ai/babysitter-sdk@0.0.173 profile:render
+```
+
+### Skill discovery commands
+
+```bash
+# Discover skills under the default or custom plugin root
+npx -y @a5c-ai/babysitter-sdk@0.0.173 skill:discover --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 skill:discover --plugin-root ./my-plugins --json
+
+# Fetch a remotely hosted skill
+npx -y @a5c-ai/babysitter-sdk@0.0.173 skill:fetch-remote <skillUrl> --json
+```
+
+### Health and configuration commands
+
+```bash
+# Health check
+npx -y @a5c-ai/babysitter-sdk@0.0.173 babysitter health
+npx -y @a5c-ai/babysitter-sdk@0.0.173 babysitter health --verbose --json
+
+# Configuration inspection
+npx -y @a5c-ai/babysitter-sdk@0.0.173 configure show
+npx -y @a5c-ai/babysitter-sdk@0.0.173 configure validate
+npx -y @a5c-ai/babysitter-sdk@0.0.173 configure paths
 ```
 
 ### Checking agent/SDK version
@@ -93,7 +194,7 @@ The `.a5c/` directory is the babysitter orchestration state directory. Follow th
       tasks/
         01KJXC5JM7S937H3TC4FASHWAP/
           task.json
-          output.json          ← written by agent after completion
+          output.json          <- written by agent after completion
         01KJXC5JM7S937H3TC4FASHWAQ/
           task.json
           output.json
@@ -103,7 +204,64 @@ File names use **ULID** format for run IDs and task IDs (26-character sortable i
 
 ---
 
-## 3. Task Result Posting Format
+## 3. Project Module Structure
+
+The `.codex/` directory contains the SDK runtime modules for this project:
+
+```
+.codex/
+  AGENTS.md                  # This file — project-scoped agent instructions
+  config.toml                # Project-level SDK configuration
+  orchestrate.js             # Main orchestration entry point; drives the run loop
+  effect-mapper.js           # Maps effectType strings to handler functions
+  hook-dispatcher.js         # Invokes lifecycle hooks from .codex/hooks/<name>/
+  profile-manager.js         # Reads, writes, merges, and renders user/project profiles
+  discovery.js               # Skill discovery and remote skill fetching
+  session-manager.js         # Session lifecycle: associate, resume, check-iteration, update
+  health-check.js            # Babysitter health probe and configuration validation
+  iteration-guard.js         # Enforces max-iteration limits and loop-control policy
+  result-poster.js           # Posts task results via task:post SDK command
+  hooks/
+    on-run-start/            # Hook handler: fired when a run begins
+    on-run-complete/         # Hook handler: fired when a run ends successfully
+    on-run-fail/             # Hook handler: fired on unrecoverable run failure
+    on-task-start/           # Hook handler: fired before each task is dispatched
+    on-task-complete/        # Hook handler: fired after each task completes
+    on-step-dispatch/        # Hook handler: fired for each dispatched step
+    on-iteration-start/      # Hook handler: fired at the start of each iteration
+    on-iteration-end/        # Hook handler: fired at the end of each iteration
+    on-breakpoint/           # Hook handler: fired when a breakpoint effect is reached
+    pre-commit/              # Hook handler: fired before git commits
+    pre-branch/              # Hook handler: fired before git branch creation
+    post-planning/           # Hook handler: fired after the planning phase
+    on-score/                # Hook handler: fired when a scoring result is produced
+    on-turn-complete.js      # Shared utility invoked at end of each agent turn
+    loop-control.sh          # Shell helper that signals the wrapper to continue or stop
+    build-task-payload.js    # Builds the structured JSON payload for a task dispatch
+    iteration-guard.js       # Per-hook iteration limit enforcement helper
+    read-json.js             # Reads and parses a JSON file from disk
+    write-json.js            # Serializes and writes a JSON object to disk
+    session-init.js          # Initializes a new session at hook invocation time
+    utils.js                 # Shared utility functions for all hook scripts
+```
+
+### Module descriptions
+
+| Module                | Responsibility                                                              |
+|-----------------------|-----------------------------------------------------------------------------|
+| `orchestrate.js`      | Top-level run loop; reads manifest, dispatches tasks, handles iteration     |
+| `effect-mapper.js`    | Resolves an `effectType` string to the correct handler module               |
+| `hook-dispatcher.js`  | Discovers and executes lifecycle hook scripts for a given hook name         |
+| `profile-manager.js`  | CRUD operations on user and project profiles; merge and render support      |
+| `discovery.js`        | Scans plugin roots for skill manifests; fetches remote skill definitions    |
+| `session-manager.js`  | Manages session association, resumption, iteration checks, and updates      |
+| `health-check.js`     | Probes babysitter process health and validates SDK configuration            |
+| `iteration-guard.js`  | Reads and enforces the configured maximum iteration count per run           |
+| `result-poster.js`    | Serializes `output.json` and invokes `task:post` to notify the babysitter   |
+
+---
+
+## 4. Task Result Posting Format
 
 Every `output.json` written by this agent must follow this envelope:
 
@@ -165,9 +323,10 @@ The `result` object must match the `outputSchema` declared in `task.json`. Commo
 
 ---
 
-## 4. Notes on This Project
+## 5. Notes on This Project
 
 - Repository root: `/data/repos`
 - Node modules are present (`node_modules/`, `package.json`); npm scripts may be available.
 - The `projects/` subdirectory may contain sub-projects with their own conventions.
+- The `test/` directory contains integration and unit tests (`harness.test.js`, `integration.test.js`).
 - Always operate from the repository root unless a task explicitly specifies a working directory.

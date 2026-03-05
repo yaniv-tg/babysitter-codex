@@ -10,6 +10,7 @@
 const { execFileSync } = require('child_process');
 const { mkdirSync, writeFileSync, readFileSync, existsSync } = require('fs');
 const { join } = require('path');
+const crypto = require('crypto');
 
 const { readSessionContext } = require('./hooks/utils.js');
 
@@ -24,6 +25,15 @@ const BASE_BACKOFF_MS = 500;
  */
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Compute a content-addressed SHA-256 hash (first 16 hex chars) of a string.
+ * @param {string|Buffer} data
+ * @returns {string}
+ */
+function contentHash(data) {
+  return crypto.createHash('sha256').update(data).digest('hex').slice(0, 16);
 }
 
 /**
@@ -60,7 +70,9 @@ async function execWithRetry(args, retries) {
 
 /**
  * Check if a result is large (>1 MiB) and handle accordingly.
- * Returns the path to use for the value flag.
+ * Returns the relative path to use for the value flag.
+ * Large results are stored content-addressed under blobs/<hash>.json.
+ * Normal results are stored at tasks/<effectId>/output.json.
  * @param {string} runDir
  * @param {string} effectId
  * @param {string} serialized - JSON string of the result
@@ -70,12 +82,13 @@ function writeResultData(runDir, effectId, serialized) {
   const byteLength = Buffer.byteLength(serialized, 'utf8');
 
   if (byteLength > LARGE_RESULT_THRESHOLD) {
-    // Write to blobs directory
+    // Write to blobs directory using content-addressed naming
+    const hash = contentHash(serialized);
     const blobsDir = join(runDir, 'blobs');
     mkdirSync(blobsDir, { recursive: true });
-    const blobPath = join(blobsDir, `${effectId}.json`);
+    const blobPath = join(blobsDir, `${hash}.json`);
     writeFileSync(blobPath, serialized, 'utf8');
-    return `blobs/${effectId}.json`;
+    return `blobs/${hash}.json`;
   }
 
   // Write to tasks/<effectId>/output.json
@@ -88,16 +101,21 @@ function writeResultData(runDir, effectId, serialized) {
 
 /**
  * Post a successful task result back to babysitter.
- * @param {string} runDir - The run directory path
+ *
+ * @param {string} runDir   - The run directory path (e.g. `.a5c/runs/<runId>`)
  * @param {string} effectId - The effect/task ID
- * @param {*} result - The result value to post
+ * @param {*}      result   - The result value to post
  * @param {object} [options={}] - Additional options
- * @param {string} [options.repoRoot] - Repository root for session context lookup
+ * @param {string} [options.stdoutFile]     - Path to stdout capture file
+ * @param {string} [options.stderrFile]     - Path to stderr capture file
+ * @param {string} [options.startedAt]      - ISO timestamp when task started
+ * @param {string} [options.finishedAt]     - ISO timestamp when task finished
+ * @param {object} [options.metadata]       - Arbitrary metadata object
+ * @param {string} [options.invocationKey]  - Idempotency / invocation key
+ * @param {string} [options.repoRoot]       - Repository root for session context lookup
  * @returns {Promise<object>} Posting confirmation object
  */
-async function postTaskResult(runDir, effectId, result, options) {
-  if (!options) options = {};
-
+async function postTaskResult(runDir, effectId, result, options = {}) {
   // Enrich result with session context if available
   const session = readSessionContext(options.repoRoot);
   if (session && session.sessionId) {
@@ -106,10 +124,11 @@ async function postTaskResult(runDir, effectId, result, options) {
 
   const serialized = JSON.stringify(result, null, 2);
 
-  // Write result (handles large results automatically)
+  // Write result (handles large results automatically, content-addressed for blobs)
   const valuePath = writeResultData(runDir, effectId, serialized);
 
-  // Call babysitter SDK
+  // Build babysitter CLI arguments
+  // Positional: task:post <runDir> <effectId>
   const args = [
     'task:post',
     runDir,
@@ -118,6 +137,15 @@ async function postTaskResult(runDir, effectId, result, options) {
     '--value', valuePath,
     '--json',
   ];
+
+  if (options.stdoutFile)    args.push('--stdout-file',     options.stdoutFile);
+  if (options.stderrFile)    args.push('--stderr-file',     options.stderrFile);
+  if (options.startedAt)     args.push('--started-at',      options.startedAt);
+  if (options.finishedAt)    args.push('--finished-at',     options.finishedAt);
+  if (options.invocationKey) args.push('--invocation-key',  options.invocationKey);
+  if (options.metadata) {
+    args.push('--metadata', JSON.stringify(options.metadata));
+  }
 
   let stdout;
   try {
@@ -146,16 +174,20 @@ async function postTaskResult(runDir, effectId, result, options) {
 
 /**
  * Post a task error back to babysitter.
- * @param {string} runDir - The run directory path
+ * @param {string} runDir   - The run directory path (e.g. `.a5c/runs/<runId>`)
  * @param {string} effectId - The effect/task ID
  * @param {Error|object} error - The error to post
  * @param {object} [options={}] - Additional options
- * @param {string} [options.repoRoot] - Repository root for session context lookup
+ * @param {string} [options.stdoutFile]     - Path to stdout capture file
+ * @param {string} [options.stderrFile]     - Path to stderr capture file
+ * @param {string} [options.startedAt]      - ISO timestamp when task started
+ * @param {string} [options.finishedAt]     - ISO timestamp when task finished
+ * @param {object} [options.metadata]       - Arbitrary metadata object
+ * @param {string} [options.invocationKey]  - Idempotency / invocation key
+ * @param {string} [options.repoRoot]       - Repository root for session context lookup
  * @returns {Promise<object>} Error confirmation object
  */
-async function postTaskError(runDir, effectId, error, options) {
-  if (!options) options = {};
-
+async function postTaskError(runDir, effectId, error, options = {}) {
   const errorPayload = {
     message: error instanceof Error ? error.message : String(error),
     stack: error instanceof Error ? error.stack : undefined,
@@ -179,6 +211,7 @@ async function postTaskError(runDir, effectId, error, options) {
 
   const relativeErrorPath = `tasks/${effectId}/error.json`;
 
+  // Build babysitter CLI arguments
   const args = [
     'task:post',
     runDir,
@@ -187,6 +220,15 @@ async function postTaskError(runDir, effectId, error, options) {
     '--error', relativeErrorPath,
     '--json',
   ];
+
+  if (options.stdoutFile)    args.push('--stdout-file',     options.stdoutFile);
+  if (options.stderrFile)    args.push('--stderr-file',     options.stderrFile);
+  if (options.startedAt)     args.push('--started-at',      options.startedAt);
+  if (options.finishedAt)    args.push('--finished-at',     options.finishedAt);
+  if (options.invocationKey) args.push('--invocation-key',  options.invocationKey);
+  if (options.metadata) {
+    args.push('--metadata', JSON.stringify(options.metadata));
+  }
 
   let stdout;
   try {
@@ -211,6 +253,76 @@ async function postTaskError(runDir, effectId, error, options) {
     errorPath: relativeErrorPath,
     response: parsed,
   };
+}
+
+/**
+ * Show details of a posted task result.
+ * Calls: babysitter task:show <runDir> <effectId> --json
+ *
+ * @param {string} runDir   - The run directory path (e.g. `.a5c/runs/<runId>`)
+ * @param {string} effectId - The effect/task ID
+ * @returns {Promise<object>} Task details object
+ */
+async function showTask(runDir, effectId) {
+  const args = [
+    'task:show',
+    runDir,
+    effectId,
+    '--json',
+  ];
+
+  let stdout;
+  try {
+    ({ stdout } = await execWithRetry(args));
+  } catch (err) {
+    throw new Error(
+      `Failed to show task effectId=${effectId} after ${MAX_RETRIES} retries: ${err.message}`
+    );
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch (_) {
+    parsed = { raw: stdout };
+  }
+
+  return parsed;
+}
+
+/**
+ * Execute all pending node-kind tasks in the given run directory.
+ * Calls: babysitter run:execute-tasks <runDir> --kind node --json
+ *
+ * @param {string} runDir          - The run directory path (e.g. `.a5c/runs/<runId>`)
+ * @param {object} [options={}]    - Additional options (reserved for future use)
+ * @returns {Promise<object>} Execution summary object
+ */
+async function executeNodeTasks(runDir, options = {}) {
+  const args = [
+    'run:execute-tasks',
+    runDir,
+    '--kind', 'node',
+    '--json',
+  ];
+
+  let stdout;
+  try {
+    ({ stdout } = await execWithRetry(args));
+  } catch (err) {
+    throw new Error(
+      `Failed to execute node tasks for runDir=${runDir} after ${MAX_RETRIES} retries: ${err.message}`
+    );
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch (_) {
+    parsed = { raw: stdout };
+  }
+
+  return parsed;
 }
 
 /**
@@ -265,5 +377,8 @@ module.exports = {
   postTaskResult,
   postTaskError,
   validateResult,
+  showTask,
+  executeNodeTasks,
+  contentHash,
   readSessionContext,
 };
