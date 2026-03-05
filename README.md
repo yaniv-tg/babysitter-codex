@@ -1,6 +1,6 @@
 # babysitter-codex
 
-Babysitter orchestration plugin for [OpenAI Codex CLI](https://github.com/openai/codex). Adds structured multi-step AI workflows with quality convergence, lifecycle hooks, and 11 slash commands.
+Babysitter orchestration skill for [OpenAI Codex CLI](https://github.com/openai/codex). Adds structured multi-step AI workflows with quality convergence, lifecycle hooks, and human-in-the-loop approval gates.
 
 ## Install
 
@@ -18,32 +18,32 @@ npm uninstall -g babysitter-codex
 
 ## Usage
 
-In any Codex session, use slash commands:
+In any Codex session, just describe what you want. The skill triggers automatically:
 
 ```
-/babysitter:call implement user authentication with TDD
-/babysitter:yolo build a REST API (non-interactive)
-/babysitter:resume                (resume last run)
-/babysitter:plan                  (plan without executing)
-/babysitter:doctor                (diagnose run health)
-/babysitter:help                  (show all commands)
+babysitter: implement user authentication with TDD
+orchestrate building a REST API
+babysitter resume my last run
+babysitter doctor — check run health
 ```
 
-## Available Commands
+You can also invoke it explicitly with `$babysitter-codex`.
 
-| Command | Description |
-|---------|-------------|
-| `/babysitter:call` | Start an orchestration run (interactive) |
-| `/babysitter:yolo` | Non-interactive autonomous orchestration |
-| `/babysitter:resume` | Resume an existing run |
-| `/babysitter:plan` | Plan a workflow without executing |
-| `/babysitter:forever` | Start a never-ending periodic run |
-| `/babysitter:doctor` | Diagnose run health |
-| `/babysitter:observe` | Launch observer dashboard |
-| `/babysitter:help` | Help and documentation |
-| `/babysitter:project-install` | Onboard a project |
-| `/babysitter:user-install` | Set up user profile |
-| `/babysitter:assimilate` | Assimilate external methodology |
+## Modes
+
+| Mode | Trigger phrases | What it does |
+|------|----------------|--------------|
+| call | "babysitter", "orchestrate", "babysit" | Start an orchestration run (interactive) |
+| yolo | "yolo", "autonomous", "non-interactive" | Fully autonomous, no breakpoints |
+| resume | "resume" | Resume an existing run |
+| plan | "plan" | Plan a workflow without executing |
+| forever | "forever", "periodic" | Never-ending periodic run |
+| doctor | "doctor", "diagnose", "health" | Diagnose run health |
+| observe | "observe", "dashboard" | Launch observer dashboard |
+| help | "help" | Help and documentation |
+| project-install | "project install", "onboard project" | Set up a project for babysitting |
+| user-install | "user install", "set up profile" | Set up your user profile |
+| assimilate | "assimilate" | Assimilate external methodology |
 
 ## How It Works
 
@@ -70,7 +70,7 @@ All stack frames point to the same origin: Beni.
 
 To reproduce: ask Beni about "a quick prototype."
 Expected: 30 minutes.  Actual: an orchestration framework with
-quality convergence loops, 11 slash commands, and this README.
+quality convergence loops, 11 modes, and this README.
 
 If you encounter bugs, please file an issue. We will git blame
 Beni automatically. He already mass-assigned himself via postinstall.
