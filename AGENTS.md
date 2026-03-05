@@ -1,23 +1,74 @@
-# Agent Instructions — Babysitter Orchestration Protocol (Wrapper Strategy)
+# Agent Instructions — Babysitter Orchestration Plugin for Codex CLI
 
-This file governs the behavior of the Codex agent (v0.107.0) when operating under the
-babysitter orchestration protocol using the **wrapper** strategy.
+This file governs the behavior of the Codex agent when operating with the babysitter
+orchestration plugin. It supports **slash commands** for all babysitter operations.
 
 ---
 
-## 1. Session Start — Wrapper Context Check
+## 0. Slash Command Recognition
+
+**IMPORTANT**: When the user types a message starting with `/babysitter:` or `/babysitter`,
+this is a **slash command**. You MUST:
+
+1. Parse the command: extract the command name and arguments
+2. Load the corresponding SKILL.md from `.codex/skills/babysitter/<command>/SKILL.md`
+3. Follow the instructions in the SKILL.md to execute the command
+
+### Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `/babysitter:call` | Start an orchestration run (interactive) |
+| `/babysitter:yolo` | Start a run (non-interactive, no breakpoints) |
+| `/babysitter:resume` | Resume an existing run |
+| `/babysitter:plan` | Plan a workflow without executing |
+| `/babysitter:forever` | Start a never-ending periodic run |
+| `/babysitter:doctor` | Diagnose run health (10 checks) |
+| `/babysitter:observe` | Launch observer dashboard |
+| `/babysitter:help` | Help and documentation |
+| `/babysitter:project-install` | Onboard a project |
+| `/babysitter:user-install` | Set up user profile |
+| `/babysitter:assimilate` | Assimilate external methodology |
+
+### Aliases
+
+- `/babysitter` = `/babysitter:call`
+- `/babysitter:babysit` = `/babysitter:call`
+
+### Command Resolution
+
+Use the skill-loader module to resolve commands:
+```javascript
+const { resolveCommand, getSkillContent } = require('./.codex/skill-loader');
+const cmd = resolveCommand(userInput);
+if (cmd) {
+  const instructions = getSkillContent(cmd.command);
+  // Follow the instructions
+}
+```
+
+### Plugin System
+
+The plugin manifest at `.codex/plugin.json` registers all commands, hooks, and skills.
+The SessionStart hook initializes the babysitter session.
+The Stop hook drives the orchestration loop (prevents premature exit during active runs).
+
+---
+
+## 1. Session Start — Context Check
 
 On every session start, before taking any other action:
 
-1. Check for an active babysitter run context by inspecting the `.a5c/` directory:
+1. Check if the user input is a `/babysitter:*` slash command. If so, dispatch it.
+2. Check for an active babysitter run context by inspecting the `.a5c/` directory:
    - Look for a current run manifest at `.a5c/runs/<RUN_ID>/manifest.json`.
    - Look for pending task definitions under `.a5c/runs/<RUN_ID>/tasks/`.
    - A task is **pending** if it has no `output.json` file yet.
-2. If a run context is found, load the task queue and resume from the first pending task.
-3. If no run context is found, proceed with normal session behavior.
+3. If a run context is found, load the task queue and resume from the first pending task.
+4. If no run context is found, proceed with normal session behavior.
 
-> The external wrapper script controls iteration flow. Do NOT loop independently —
-> complete one task, emit results, then wait for the wrapper to invoke the next iteration.
+> The stop-hook controls iteration flow. Do NOT loop independently —
+> complete one task, emit results, then the hook triggers the next iteration.
 
 ---
 

@@ -1,7 +1,7 @@
 {
-  "name": "repos",
-  "version": "1.0.0",
-  "description": "Babysitter-Codex integration: orchestrates iterative AI coding loops with guard rails, effect mapping, and result posting via the babysitter SDK",
+  "name": "babysitter-codex",
+  "version": "2.0.0",
+  "description": "Babysitter SDK plugin for OpenAI Codex CLI — slash commands, orchestration, quality convergence, and lifecycle hooks",
   "main": "index.js",
   "scripts": {
     "test": "node test/integration.test.js && node test/harness.test.js",
