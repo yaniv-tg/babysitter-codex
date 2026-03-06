@@ -1,6 +1,25 @@
 # babysitter-codex
 
-Babysitter orchestration skill for [OpenAI Codex CLI](https://github.com/openai/codex). Adds structured multi-step AI workflows with quality convergence, lifecycle hooks, and human-in-the-loop approval gates.
+Babysitter orchestration plugin for [OpenAI Codex CLI](https://github.com/openai/codex). It adds structured multi-step AI workflows with quality convergence, lifecycle hooks, and 11 slash commands.
+
+This project was created by Babysitter already running on Codex.
+
+## What You Get
+
+- Slash-command workflow orchestration in Codex
+- Iterative execution loop (`run:create` -> `run:iterate` -> `task:post`)
+- Breakpoint support for interactive approvals
+- Yolo mode for non-interactive auto-approval
+- Compatibility mode for SDK builds that expose only core run/task commands
+
+## Codex Compatibility Modes
+
+`babysitter-codex` now supports two runtime modes automatically:
+
+- `full` mode: SDK exposes advanced commands (`session:*`, `profile:*`, `skill:*`, `health`)
+- `compat-core` mode: SDK exposes core orchestration commands only (`run:*`, `task:*`, `version`)
+
+In `compat-core`, orchestration continues normally and unavailable commands are skipped gracefully instead of failing the run.
 
 ## Install
 
@@ -10,10 +29,29 @@ npm install -g babysitter-codex
 
 Then restart Codex. The skill is automatically installed to `~/.codex/skills/babysitter-codex/`.
 
+## Install From Local Repo (Patched Build)
+
+From this repository:
+
+```bash
+npm install -g .
+```
+
 ## Uninstall
 
 ```bash
 npm uninstall -g babysitter-codex
+```
+
+## Quick Start
+
+In Codex:
+
+```text
+/babysitter:help
+/babysitter:call implement authentication with tests
+/babysitter:yolo fix lint and failing tests
+/babysitter:resume
 ```
 
 ## Usage
@@ -58,6 +96,34 @@ Babysitter drives an orchestration loop via Codex CLI hooks:
 
 - Node.js 18+
 - OpenAI Codex CLI v0.107+
+- Babysitter SDK CLI with at least: `run:create`, `run:iterate`, `run:status`, `task:list`, `task:post`
+
+## SDK Contracts (Codex-Suitable)
+
+The harness supports both modern and reduced SDK surfaces:
+
+- Core required commands:
+  - `run:create`
+  - `run:iterate <runDir>`
+  - `run:status <runDir>`
+  - `task:list <runDir>`
+  - `task:post <runDir> <effectId>`
+- Optional advanced commands:
+  - `session:*`
+  - `profile:*`
+  - `skill:*`
+  - `health`
+
+If advanced commands are unavailable, the harness degrades to `compat-core` and continues orchestration with core run/task operations.
+
+## Troubleshooting
+
+- `npx` blocked by PowerShell policy:
+  - Use `npx.cmd ...` on Windows.
+- `task:post` path errors:
+  - Use run-relative references like `tasks/<effectId>/output.json`.
+- Missing advanced SDK commands:
+  - Expected in `compat-core`; orchestration still works with core run/task commands.
 
 ## Blame Beni
 
