@@ -9,6 +9,16 @@ All notable changes to this project are documented in this file.
 - Deterministic per-run trace logging at `<runDir>/run-trace.jsonl`.
 - Trace events across run lifecycle (run/iteration/task requested, executed, posted, failed, completed).
 - Windows and Linux installation guides with platform-specific commands.
+- Full long-session scenario runner (`test/full-session-long-run.ps1`) that enforces:
+  - at least 3 interview breakpoints
+  - at least 1 breakpoint with 4 questions
+  - user-choice application checks in generated artifact
+  - simulated 60-minute workload
+  - strict `score == 100` pass gate
+- Full scenario runbook and helper scripts:
+  - `test/FULL_SESSION_SCENARIO.md`
+  - `test/full-session-scenario.js`
+  - npm scripts: `test:scenario`, `test:long-scenario`
 
 ### Changed
 - Orchestrator startup now fails fast when required core SDK commands are missing.

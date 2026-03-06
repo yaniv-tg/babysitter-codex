@@ -7,6 +7,8 @@
     "test:unit": "node test/harness.test.js",
     "test:integration": "node test/integration.test.js",
     "test:plugin": "node test/plugin.test.js",
+    "test:scenario": "node test/full-session-scenario.js",
+    "test:long-scenario": "powershell -ExecutionPolicy Bypass -File ./test/full-session-long-run.ps1",
     "lint": "find .codex -name '*.js' | xargs -I{} node --check {}",
     "postinstall": "node bin/postinstall.js",
     "preuninstall": "node bin/uninstall.js"

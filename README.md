@@ -17,6 +17,19 @@ This project was created by Babysitter already running on Codex.
 
 - See [CHANGELOG.md](./CHANGELOG.md) for versioned updates and latest release notes.
 
+## Full Test Scenarios
+
+- Core scenario runner: `npm run test:scenario`
+- Long-session strict scenario: `npm run test:long-scenario`
+- Scenario runbook: [test/FULL_SESSION_SCENARIO.md](./test/FULL_SESSION_SCENARIO.md)
+
+The long-session scenario validates:
+- 3+ interview breakpoints
+- at least one breakpoint with 4 questions
+- generated artifact reflects selected interview choices (colors/text)
+- simulated 60-minute AI workload
+- strict `100/100` score gate
+
 ## Important: No Native /babysitter Slash Commands
 
 Codex does not have built-in `/babysitter:*` commands.
