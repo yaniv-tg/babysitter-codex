@@ -25,7 +25,8 @@ const { readUserProfile, readProjectProfile } = require('./profile-manager');
 const { discoverSkills } = require('./discovery');
 const { initSession, associateSession } = require('./session-manager');
 const { runStartupHealthGate } = require('./health-check');
-const { runJson, supports } = require('./sdk-cli');
+const { runJson, supports, getCompatibilityReport } = require('./sdk-cli');
+const { appendTrace, resolveTracePath } = require('./trace-logger');
 
 // ---------------------------------------------------------------------------
 // 1. Parse CLI arguments
@@ -200,6 +201,16 @@ async function main() {
   // Run startup health gate before anything else
   if (!runStartupHealthGate(true)) { process.exit(1); }
 
+  const compat = getCompatibilityReport();
+  console.log(`[orchestrate] SDK compatibility mode: ${compat.mode}`);
+  if (compat.missingCore.length > 0) {
+    console.error(`[orchestrate] Missing required core commands: ${compat.missingCore.join(', ')}`);
+    process.exit(1);
+  }
+  if (compat.missingAdvanced.length > 0) {
+    console.log(`[orchestrate] Missing advanced commands (compat-core): ${compat.missingAdvanced.join(', ')}`);
+  }
+
   // Read user and project profiles
   const userProfile    = readUserProfile();
   const projectProfile = readProjectProfile(repoRoot);
@@ -262,6 +273,15 @@ async function main() {
     process.exit(1);
   }
 
+  console.log(`[orchestrate] Trace log: ${resolveTracePath(runDir)}`);
+  appendTrace(runDir, {
+    type: 'run.start',
+    runId,
+    processId: args.processId,
+    compatibilityMode: compat.mode,
+    missingAdvanced: compat.missingAdvanced,
+  });
+
   // Associate session with this run
   if (supports('session:associate')) {
     try {
@@ -294,6 +314,7 @@ async function main() {
   while (iteration < args.maxIterations) {
     iteration++;
     console.log(`\n[orchestrate] === Iteration ${iteration} / ${args.maxIterations} ===`);
+    appendTrace(runDir, { type: 'iteration.start', runId, iteration });
 
     // Fire on-iteration-start hook
     fireHook('on-iteration-start', { iteration, runId });
@@ -304,6 +325,13 @@ async function main() {
         const guardResult = await runAllGuards(runDir, { maxIterations: args.maxIterations });
         if (!guardResult.allowed) {
           console.warn(`[orchestrate] Guard blocked iteration: ${guardResult.warnings.join('; ')}`);
+          appendTrace(runDir, {
+            type: 'iteration.blocked',
+            runId,
+            iteration,
+            reason: 'guard',
+            warnings: guardResult.warnings || [],
+          });
           finalStatus = 'guard_halt';
           break;
         }
@@ -324,6 +352,13 @@ async function main() {
       iterateResult = babysitter(iterateArgs);
     } catch (err) {
       console.error(`[orchestrate] run:iterate failed on iteration ${iteration}: ${err.message}`);
+      appendTrace(runDir, {
+        type: 'iteration.error',
+        runId,
+        iteration,
+        op: 'run:iterate',
+        error: err.message,
+      });
       finalStatus = 'error';
       break;
     }
@@ -334,6 +369,7 @@ async function main() {
     if (iterateResult.completionProof) {
       completionProof = iterateResult.completionProof;
       console.log('[orchestrate] CompletionProof received — run is complete.');
+      appendTrace(runDir, { type: 'run.complete', runId, iteration, via: 'completionProof' });
       finalStatus = 'complete';
       break;
     }
@@ -346,6 +382,7 @@ async function main() {
       iterateResult.done === true
     ) {
       console.log('[orchestrate] Run marked as done by iterate.');
+      appendTrace(runDir, { type: 'run.complete', runId, iteration, via: 'status' });
       finalStatus = 'complete';
       break;
     }
@@ -355,6 +392,7 @@ async function main() {
 
     if (nextActions.length === 0) {
       console.log('[orchestrate] No pending actions returned; waiting for next iterate.');
+      appendTrace(runDir, { type: 'iteration.idle', runId, iteration });
       continue;
     }
 
@@ -366,6 +404,14 @@ async function main() {
       const kind     = task.kind || 'agent';
 
       console.log(`\n[orchestrate]  -- Task ${effectId} (kind=${kind})`);
+      appendTrace(runDir, {
+        type: 'task.requested',
+        runId,
+        iteration,
+        effectId,
+        kind,
+        taskId: task.taskId || null,
+      });
 
       // -----------------------------------------------------------------------
       // 5. Breakpoint tasks — prompt user via stdin
@@ -388,8 +434,10 @@ async function main() {
 
         try {
           babysitter(['task:post', runDir, effectId, '--status', 'ok', '--value', outputRef, '--json']);
+          appendTrace(runDir, { type: 'task.posted', runId, iteration, effectId, kind, status: 'ok', mode: 'breakpoint' });
         } catch (postErr) {
           console.error(`[orchestrate] task:post failed for breakpoint ${effectId}: ${postErr.message}`);
+          appendTrace(runDir, { type: 'task.post.failed', runId, iteration, effectId, kind, error: postErr.message });
         }
         continue;
       }
@@ -399,6 +447,7 @@ async function main() {
       // -----------------------------------------------------------------------
       if (kind !== 'agent') {
         console.warn(`[orchestrate] Unknown task kind "${kind}" — skipping.`);
+        appendTrace(runDir, { type: 'task.skipped', runId, iteration, effectId, kind, reason: 'unsupported_kind' });
         continue;
       }
 
@@ -415,10 +464,20 @@ async function main() {
 
       // 4d–4e. Spawn codex exec and parse output (uses buildCodexArgs via runCodexExec)
       const codexResult = runCodexExec(agentPrompt, projectDir, task);
+      appendTrace(runDir, {
+        type: 'task.executed',
+        runId,
+        iteration,
+        effectId,
+        kind,
+        exitCode: codexResult.exitCode,
+        success: codexResult.success,
+      });
 
       // 4f. Write result and post via result-poster
       if (!effectId) {
         console.warn('[orchestrate] Task has no effectId; cannot write output.');
+        appendTrace(runDir, { type: 'task.skipped', runId, iteration, kind, reason: 'missing_effectId' });
         continue;
       }
 
@@ -433,6 +492,7 @@ async function main() {
           };
           await postTaskResult(runDir, effectId, outputPayload);
           console.log(`[orchestrate] task:post (ok) succeeded for ${effectId}`);
+          appendTrace(runDir, { type: 'task.posted', runId, iteration, effectId, kind, status: 'ok' });
           // Fire on-task-complete hook after posting result
           fireHook('on-task-complete', { effectId: task.effectId, kind, status: 'ok' });
         } else {
@@ -443,16 +503,19 @@ async function main() {
             details: codexResult.stderr,
           });
           console.log(`[orchestrate] task:post (error) succeeded for ${effectId}`);
+          appendTrace(runDir, { type: 'task.posted', runId, iteration, effectId, kind, status: 'error' });
           // Fire on-task-complete hook after posting error result
           fireHook('on-task-complete', { effectId: task.effectId, kind, status: 'error' });
         }
       } catch (postErr) {
         console.error(`[orchestrate] task:post failed for ${effectId}: ${postErr.message}`);
+        appendTrace(runDir, { type: 'task.post.failed', runId, iteration, effectId, kind, error: postErr.message });
       }
     }
 
     // Fire on-iteration-end hook at end of each iteration
     fireHook('on-iteration-end', { iteration, runId, status: iterateResult.status });
+    appendTrace(runDir, { type: 'iteration.end', runId, iteration, status: iterateResult.status || 'unknown' });
   }
 
   // -------------------------------------------------------------------------
@@ -476,10 +539,12 @@ async function main() {
     } else {
       fireHook('on-run-fail', { runId, error: finalStatus });
     }
+    appendTrace(runDir, { type: 'run.end', runId, finalStatus, iterations: iteration });
 
     process.exit(finalStatus === 'complete' ? 0 : 1);
   } catch (err) {
     fireHook('on-run-fail', { runId, error: err.message });
+    if (runDir) appendTrace(runDir, { type: 'run.fatal', runId, error: err.message });
     throw err;
   } finally {
     releaseLock();

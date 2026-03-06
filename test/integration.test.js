@@ -44,6 +44,8 @@ function testRequire() {
     '.codex/discovery.js',
     '.codex/session-manager.js',
     '.codex/health-check.js',
+    '.codex/sdk-cli.js',
+    '.codex/trace-logger.js',
     '.codex/hooks/utils.js',
     '.codex/hooks/read-json.js',
     '.codex/hooks/write-json.js',

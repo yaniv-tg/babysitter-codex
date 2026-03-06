@@ -73,6 +73,8 @@ function runJson(args, options = {}) {
 }
 
 let cachedCommands = null;
+const CORE_COMMANDS = ['run:create', 'run:iterate', 'run:status', 'task:list', 'task:post'];
+const ADVANCED_COMMANDS = ['session:init', 'session:associate', 'profile:read', 'skill:discover', 'health'];
 
 function getSupportedCommands() {
   if (cachedCommands) return cachedCommands;
@@ -99,10 +101,30 @@ function supports(command) {
   return getSupportedCommands().has(command);
 }
 
+function getCompatibilityReport() {
+  const available = Array.from(getSupportedCommands()).sort();
+  const missingCore = CORE_COMMANDS.filter((c) => !supports(c));
+  const missingAdvanced = ADVANCED_COMMANDS.filter((c) => !supports(c));
+
+  let mode = 'full';
+  if (missingCore.length > 0) mode = 'unsupported';
+  else if (missingAdvanced.length > 0) mode = 'compat-core';
+
+  return {
+    mode,
+    available,
+    missingCore,
+    missingAdvanced,
+    coreCommands: [...CORE_COMMANDS],
+    advancedCommands: [...ADVANCED_COMMANDS],
+  };
+}
+
 module.exports = {
   runRaw,
   runJson,
   supports,
   getSupportedCommands,
   parseJsonish,
+  getCompatibilityReport,
 };

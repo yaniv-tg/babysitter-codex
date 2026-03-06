@@ -1,5 +1,5 @@
 'use strict';
-const { runJson, supports, getSupportedCommands } = require('./sdk-cli');
+const { runJson, supports, getSupportedCommands, getCompatibilityReport } = require('./sdk-cli');
 
 /**
  * Run SDK health check.
@@ -17,18 +17,15 @@ function checkHealth(verbose) {
 
   // Compatibility mode: old SDKs do not ship `health`.
   const versionRes = runJson(['version'], { timeout: 10000 });
-  const hasCore =
-    supports('run:create') &&
-    supports('run:iterate') &&
-    supports('run:status') &&
-    supports('task:list') &&
-    supports('task:post');
+  const compat = getCompatibilityReport();
   return {
-    status: hasCore ? 'degraded' : 'unhealthy',
-    mode: 'compat-core',
+    status: compat.mode === 'unsupported' ? 'unhealthy' : 'degraded',
+    mode: compat.mode,
     version: versionRes.parsed || String(versionRes.stdout || '').trim() || null,
     availableCommands: Array.from(getSupportedCommands()),
-    missing: ['health'],
+    missingCore: compat.missingCore,
+    missingAdvanced: compat.missingAdvanced,
+    missing: ['health', ...compat.missingAdvanced.filter((x) => x !== 'health')],
   };
 }
 

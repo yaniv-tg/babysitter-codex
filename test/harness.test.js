@@ -98,6 +98,27 @@ function testDiscovery() {
   console.log('  ✓ discovery: exports all functions');
 }
 
+// Test: sdk-cli compatibility helpers
+function testSdkCli() {
+  const { runJson, supports, getSupportedCommands, getCompatibilityReport } = require('../.codex/sdk-cli');
+  assert.ok(typeof runJson === 'function');
+  assert.ok(typeof supports === 'function');
+  assert.ok(typeof getSupportedCommands === 'function');
+  assert.ok(typeof getCompatibilityReport === 'function');
+  const report = getCompatibilityReport();
+  assert.ok(report && typeof report.mode === 'string');
+  assert.ok(Array.isArray(report.available));
+  console.log('  ✓ sdk-cli: compatibility report available');
+}
+
+// Test: trace logger exports
+function testTraceLogger() {
+  const { appendTrace, resolveTracePath } = require('../.codex/trace-logger');
+  assert.ok(typeof appendTrace === 'function');
+  assert.ok(typeof resolveTracePath === 'function');
+  console.log('  ✓ trace-logger: exports append/resolve');
+}
+
 // Test: session-manager exports
 function testSessionManager() {
   const sm = require('../.codex/session-manager');
@@ -117,6 +138,8 @@ try {
   testProfileManager();
   testHealthCheck();
   testDiscovery();
+  testSdkCli();
+  testTraceLogger();
   testSessionManager();
   console.log('\nAll unit tests passed!');
 } catch (err) {
