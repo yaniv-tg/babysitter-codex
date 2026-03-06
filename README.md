@@ -13,33 +13,109 @@ This project was created by Babysitter already running on Codex.
 - Compatibility mode for SDK builds that expose only core run/task commands
 - Deterministic per-run trace log at `<runDir>/run-trace.jsonl`
 
-## Install
+## Important: No Native /babysitter Slash Commands
+
+Codex does not have built-in `/babysitter:*` commands.
+
+Babysitter is external and activated by this skill using natural-language triggers (for example: `babysitter`, `orchestrate`, `yolo`, `resume`, `doctor`).
+
+## Requirements
+
+- Node.js 18+
+- npm 9+
+- OpenAI Codex CLI (installed and usable from terminal)
+
+`babysitter-codex` installs the Babysitter SDK dependency automatically. Users do not need a separate manual SDK install for normal usage.
+
+## Installation (Windows)
+
+### 1. Verify prerequisites (PowerShell)
+
+```powershell
+node -v
+npm -v
+codex --version
+```
+
+### 2. Install globally from npm
+
+```powershell
+npm.cmd install -g babysitter-codex
+```
+
+### 3. Or install from local repo clone
+
+```powershell
+cd C:\path\to\babysitter-codex
+npm.cmd install -g .
+```
+
+### 4. Verify install
+
+```powershell
+npm.cmd ls -g babysitter-codex --depth=0
+```
+
+### 5. Restart Codex
+
+After install, restart Codex so it loads the updated skill files.
+
+### Windows notes
+
+- If PowerShell blocks `npx`, use `npx.cmd`.
+- If global npm install fails with permissions, run terminal as Administrator.
+
+## Installation (Linux)
+
+### 1. Verify prerequisites
+
+```bash
+node -v
+npm -v
+codex --version
+```
+
+### 2. Install globally from npm
 
 ```bash
 npm install -g babysitter-codex
 ```
 
-Then restart Codex. The skill is installed to `~/.codex/skills/babysitter-codex/`.
-
-## Install From Local Repo (Patched Build)
-
-From this repository:
+### 3. Or install from local repo clone
 
 ```bash
+cd /path/to/babysitter-codex
 npm install -g .
 ```
 
+### 4. Verify install
+
+```bash
+npm ls -g babysitter-codex --depth=0
+```
+
+### 5. Restart Codex
+
+After install, restart Codex so it loads the updated skill files.
+
+### Linux notes
+
+- If global install needs elevated rights, use `sudo npm install -g babysitter-codex`.
+- Prefer using `nvm` or user-owned Node install to avoid `sudo` where possible.
+
 ## Uninstall
+
+### Windows
+
+```powershell
+npm.cmd uninstall -g babysitter-codex
+```
+
+### Linux
 
 ```bash
 npm uninstall -g babysitter-codex
 ```
-
-## Important: No Native /babysitter Slash Commands
-
-Codex does not have built-in `/babysitter:*` commands.
-
-Babysitter is external and activated by this skill using natural-language triggers (for example: `babysitter`, `orchestrate`, `yolo`, `resume`, `doctor`, etc.).
 
 ## Quick Start (How To Actually Run It)
 
@@ -87,20 +163,6 @@ babysitter task:post <runDir> <effectId> --status ok --value tasks/<effectId>/ou
 
 In `compat-core`, orchestration continues and unavailable advanced commands are skipped gracefully.
 
-## Requirements
-
-- Node.js 18+
-- OpenAI Codex CLI v0.107+
-
-The Babysitter SDK CLI is installed as a dependency of `babysitter-codex`, so users do not need a separate manual SDK install for normal usage.
-
-For contributors/debugging, the minimum effective SDK command surface is:
-- `run:create`
-- `run:iterate`
-- `run:status`
-- `task:list`
-- `task:post`
-
 ## SDK Contracts (Codex-Suitable)
 
 - Core required commands:
@@ -119,8 +181,6 @@ If advanced commands are unavailable, the harness degrades to `compat-core` and 
 
 ## Troubleshooting
 
-- `npx` blocked by PowerShell policy:
-  - Use `npx.cmd ...` on Windows.
 - `task:post` path errors:
   - Use run-relative references like `tasks/<effectId>/output.json`.
 - Missing advanced SDK commands:
