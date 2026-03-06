@@ -22,40 +22,53 @@
 const path = require('path');
 const fs = require('fs');
 
-const args = process.argv.slice(2);
-if (args.length < 1) {
-  process.stderr.write('Usage: write-json.js <output-file> [key=value ...]\n');
-  process.exit(1);
+function parsePairs(pairs) {
+  const obj = {};
+  for (const pair of pairs) {
+    const eqIdx = pair.indexOf('=');
+    if (eqIdx === -1) {
+      continue;
+    }
+    const key = pair.slice(0, eqIdx);
+    const raw = pair.slice(eqIdx + 1);
+
+    if (raw === 'true') {
+      obj[key] = true;
+    } else if (raw === 'false') {
+      obj[key] = false;
+    } else if (raw !== '' && !isNaN(Number(raw)) && !isNaN(parseFloat(raw))) {
+      obj[key] = Number(raw);
+    } else {
+      obj[key] = raw;
+    }
+  }
+  return obj;
 }
 
-const outputFile = args[0];
-const pairs = args.slice(1);
+function writeJsonFile(outputFile, obj) {
+  const dir = path.dirname(outputFile);
+  fs.mkdirSync(dir, { recursive: true });
 
-const obj = {};
-for (const pair of pairs) {
-  const eqIdx = pair.indexOf('=');
-  if (eqIdx === -1) {
-    process.stderr.write(`[write-json] Skipping malformed argument (no '='): ${pair}\n`);
-    continue;
-  }
-  const key = pair.slice(0, eqIdx);
-  const raw = pair.slice(eqIdx + 1);
-
-  // Type coercion
-  if (raw === 'true') {
-    obj[key] = true;
-  } else if (raw === 'false') {
-    obj[key] = false;
-  } else if (raw !== '' && !isNaN(Number(raw)) && !isNaN(parseFloat(raw))) {
-    obj[key] = Number(raw);
-  } else {
-    obj[key] = raw;
-  }
+  const tmpFile = outputFile + '.tmp';
+  fs.writeFileSync(tmpFile, JSON.stringify(obj, null, 2) + '\n', 'utf8');
+  fs.renameSync(tmpFile, outputFile);
 }
 
-const dir = path.dirname(outputFile);
-fs.mkdirSync(dir, { recursive: true });
+function main(argv) {
+  const args = argv.slice(2);
+  if (args.length < 1) {
+    process.stderr.write('Usage: write-json.js <output-file> [key=value ...]\n');
+    process.exit(1);
+  }
 
-const tmpFile = outputFile + '.tmp';
-fs.writeFileSync(tmpFile, JSON.stringify(obj, null, 2) + '\n', 'utf8');
-fs.renameSync(tmpFile, outputFile);
+  const outputFile = args[0];
+  const pairs = args.slice(1);
+  const obj = parsePairs(pairs);
+  writeJsonFile(outputFile, obj);
+}
+
+if (require.main === module) {
+  main(process.argv);
+}
+
+module.exports = { parsePairs, writeJsonFile };

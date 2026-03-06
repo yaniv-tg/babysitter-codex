@@ -21,40 +21,47 @@
 
 const fs = require('fs');
 
-const args = process.argv.slice(2);
-if (args.length < 2) {
-  process.stderr.write('Usage: read-json.js <file-or--> <key> [fallback-key ...]\n');
-  process.exit(1);
-}
-
-const filePath = args[0];
-const keys = args.slice(1);
-
-let raw;
-try {
+function readJsonValue(filePath, keys) {
+  let raw;
   if (filePath === '-') {
-    raw = fs.readFileSync(0, 'utf8'); // stdin
+    raw = fs.readFileSync(0, 'utf8');
   } else {
     raw = fs.readFileSync(filePath, 'utf8');
   }
-} catch (err) {
-  process.stderr.write(`[read-json] Cannot read ${filePath}: ${err.message}\n`);
-  process.exit(1);
+  const obj = JSON.parse(raw);
+  for (const key of keys) {
+    if (obj != null && obj[key] !== undefined && obj[key] !== null) {
+      return String(obj[key]);
+    }
+  }
+  return null;
 }
 
-let obj;
-try {
-  obj = JSON.parse(raw);
-} catch (err) {
-  process.stderr.write(`[read-json] Invalid JSON in ${filePath}: ${err.message}\n`);
-  process.exit(1);
-}
+function main(argv) {
+  const args = argv.slice(2);
+  if (args.length < 2) {
+    process.stderr.write('Usage: read-json.js <file-or--> <key> [fallback-key ...]\n');
+    process.exit(1);
+  }
 
-for (const key of keys) {
-  if (obj != null && obj[key] !== undefined && obj[key] !== null) {
-    process.stdout.write(String(obj[key]));
+  const filePath = args[0];
+  const keys = args.slice(1);
+
+  try {
+    const value = readJsonValue(filePath, keys);
+    if (value === null) {
+      process.exit(1);
+    }
+    process.stdout.write(value);
     process.exit(0);
+  } catch (err) {
+    process.stderr.write(`[read-json] ${err.message}\n`);
+    process.exit(1);
   }
 }
 
-process.exit(1);
+if (require.main === module) {
+  main(process.argv);
+}
+
+module.exports = { readJsonValue };

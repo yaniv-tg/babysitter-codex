@@ -29,9 +29,13 @@ cat > "$INPUT_FILE"
 
 echo "[INFO] $(date -u +%Y-%m-%dT%H:%M:%SZ) Input received ($(wc -c < "$INPUT_FILE") bytes)" >> "$LOG_FILE" 2>/dev/null
 
-# Run the SDK hook
+# Run the SDK hook (try codex harness first, then claude-code fallback for older SDK builds)
 RESULT=$(babysitter hook:run --hook-type session-start --harness codex --plugin-root "$PLUGIN_ROOT" --json < "$INPUT_FILE" 2>>"$LOG_DIR/babysitter-session-start-stderr.log")
 EXIT_CODE=$?
+if [ $EXIT_CODE -ne 0 ]; then
+  RESULT=$(babysitter hook:run --hook-type session-start --harness claude-code --plugin-root "$PLUGIN_ROOT" --json < "$INPUT_FILE" 2>>"$LOG_DIR/babysitter-session-start-stderr.log")
+  EXIT_CODE=$?
+fi
 
 echo "[INFO] $(date -u +%Y-%m-%dT%H:%M:%SZ) CLI exit code=$EXIT_CODE" >> "$LOG_FILE" 2>/dev/null
 

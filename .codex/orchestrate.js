@@ -14,7 +14,7 @@
  *     [--plugin-root <path>]
  */
 
-const { execFileSync, spawnSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const fs   = require('fs');
 const path = require('path');
 const { mapEffectToCodexPrompt, parseCodexOutput, mapCodexError, buildCodexArgs } = require('./effect-mapper.js');
@@ -23,8 +23,9 @@ const { runAllGuards } = require('./iteration-guard.js');
 const { fireHook } = require('./hook-dispatcher');
 const { readUserProfile, readProjectProfile } = require('./profile-manager');
 const { discoverSkills } = require('./discovery');
-const { associateSession, checkIteration, getIterationMessage, updateSession } = require('./session-manager');
+const { initSession, associateSession } = require('./session-manager');
 const { runStartupHealthGate } = require('./health-check');
+const { runJson, supports } = require('./sdk-cli');
 
 // ---------------------------------------------------------------------------
 // 1. Parse CLI arguments
@@ -72,43 +73,13 @@ function parseArgs(argv) {
 // Helper: run babysitter SDK command and return parsed JSON output
 // ---------------------------------------------------------------------------
 
-const BABYSITTER_PKG = '@a5c-ai/babysitter-sdk@0.0.173';
-
 function babysitter(subArgs, opts = {}) {
-  const cmdArgs = ['-y', BABYSITTER_PKG, ...subArgs];
-  console.log(`[orchestrate] npx ${cmdArgs.join(' ')}`);
-
-  let raw;
-  try {
-    raw = execFileSync('npx', cmdArgs, {
-      encoding: 'utf8',
-      stdio:    ['pipe', 'pipe', 'pipe'],
-      env:      { ...process.env },
-      ...opts,
-    });
-  } catch (err) {
-    const stderr = (err.stderr || '').toString().trim();
-    const stdout = (err.stdout || '').toString().trim();
-    console.error(`[orchestrate] babysitter command failed:\n  stderr: ${stderr}\n  stdout: ${stdout}`);
-    throw err;
+  const res = runJson(subArgs, opts);
+  if (!res.ok) {
+    const msg = res.stderr || res.stdout || `babysitter command failed: ${subArgs.join(' ')}`;
+    throw new Error(msg);
   }
-
-  // Strip ANSI escape codes before JSON parsing
-  const clean = raw.replace(/\x1b\[[0-9;]*m/g, '').trim();
-
-  // Extract first JSON object / array from output (ignore surrounding log lines)
-  const jsonMatch = clean.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-  if (!jsonMatch) {
-    console.error(`[orchestrate] No JSON found in output:\n${clean}`);
-    return {};
-  }
-
-  try {
-    return JSON.parse(jsonMatch[0]);
-  } catch (parseErr) {
-    console.error(`[orchestrate] Failed to parse JSON: ${parseErr.message}\nRaw:\n${clean}`);
-    return {};
-  }
+  return res.parsed || {};
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +195,7 @@ async function main() {
 
   const projectDir = process.cwd();
   const repoRoot   = projectDir;
+  const stateDir = path.join(args.pluginRoot || repoRoot, '.a5c');
 
   // Run startup health gate before anything else
   if (!runStartupHealthGate(true)) { process.exit(1); }
@@ -244,11 +216,19 @@ async function main() {
   // -------------------------------------------------------------------------
 
   console.log('\n[orchestrate] === session:init ===');
-  let sessionData;
-  try {
-    sessionData = babysitter(['session:init', '--json']);
-  } catch (_) {
-    sessionData = {};
+  let sessionData = {};
+  if (supports('session:init')) {
+    try {
+      sessionData = initSession({
+        sessionId: process.env.CODEX_SESSION_ID || `codex-${Date.now()}`,
+        stateDir,
+      }) || {};
+    } catch (e) {
+      console.warn(`[orchestrate] session:init failed, continuing in compat mode: ${e.message}`);
+      sessionData = {};
+    }
+  } else {
+    console.log('[orchestrate] session:init not supported by SDK; continuing in compat mode.');
   }
   const sessionId = sessionData.sessionId || sessionData.id || null;
   console.log(`[orchestrate] Session ID: ${sessionId}`);
@@ -283,10 +263,16 @@ async function main() {
   }
 
   // Associate session with this run
-  try { associateSession(runId); } catch (e) { console.warn('[orchestrate] session:associate failed:', e.message); }
+  if (supports('session:associate')) {
+    try {
+      associateSession(runId, { sessionId, stateDir, repoRoot });
+    } catch (e) {
+      console.warn('[orchestrate] session:associate failed:', e.message);
+    }
+  }
 
   // Discover available skills
-  const discovered = discoverSkills({ pluginRoot: process.env.CLAUDE_PLUGIN_ROOT });
+  const discovered = discoverSkills({ pluginRoot: args.pluginRoot || process.env.CLAUDE_PLUGIN_ROOT || path.join(repoRoot, '.codex') });
 
   // Fire on-run-start hook
   fireHook('on-run-start', { runId, processId: args.processId });
@@ -353,7 +339,12 @@ async function main() {
     }
 
     // Check for explicit done/finished status
-    if (iterateResult.status === 'done' || iterateResult.status === 'finished' || iterateResult.done === true) {
+    if (
+      iterateResult.status === 'done' ||
+      iterateResult.status === 'finished' ||
+      iterateResult.status === 'completed' ||
+      iterateResult.done === true
+    ) {
       console.log('[orchestrate] Run marked as done by iterate.');
       finalStatus = 'complete';
       break;
@@ -391,11 +382,12 @@ async function main() {
         const taskOutputDir = path.join(runDir, 'tasks', effectId);
         fs.mkdirSync(taskOutputDir, { recursive: true });
         const outputPath = path.join(taskOutputDir, 'output.json');
+        const outputRef = `tasks/${effectId}/output.json`;
         const outputPayload = { success: true, answer, completedAt: new Date().toISOString() };
         fs.writeFileSync(outputPath, JSON.stringify(outputPayload, null, 2));
 
         try {
-          babysitter(['task:post', runDir, effectId, '--status', 'ok', '--value', outputPath, '--json']);
+          babysitter(['task:post', runDir, effectId, '--status', 'ok', '--value', outputRef, '--json']);
         } catch (postErr) {
           console.error(`[orchestrate] task:post failed for breakpoint ${effectId}: ${postErr.message}`);
         }

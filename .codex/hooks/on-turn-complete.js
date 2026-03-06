@@ -9,9 +9,9 @@
  * - Checks iteration state via `babysitter run:status`
  */
 
-const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { runJson, supports } = require('../sdk-cli');
 
 // Import shared hook utilities
 const { getRunId, isValidRunId } = require('./utils.js');
@@ -25,16 +25,17 @@ function getRunStatus(runId) {
     return null;
   }
 
-  try {
-    const output = execSync(
-      `npx -y @a5c-ai/babysitter-sdk@0.0.173 run:status --run-id ${runId} --json`,
-      { encoding: 'utf8', stdio: ['inherit', 'pipe', 'inherit'] }
-    );
-    return JSON.parse(output.trim());
-  } catch (err) {
-    console.warn('[on-turn-complete] Could not retrieve run status:', err.message);
+  if (!supports('run:status')) {
+    return { unsupported: true, command: 'run:status' };
+  }
+
+  const runDir = path.join('.a5c', 'runs', runId);
+  const result = runJson(['run:status', runDir, '--json'], { timeout: 10000 });
+  if (!result.ok) {
+    console.warn('[on-turn-complete] Could not retrieve run status:', result.stderr || result.stdout || `exit code ${result.exitCode}`);
     return null;
   }
+  return result.parsed || null;
 }
 
 function logTurnCompletion(runId, turnIndex, status) {

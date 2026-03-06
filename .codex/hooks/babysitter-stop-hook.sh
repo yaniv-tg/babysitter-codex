@@ -32,6 +32,10 @@ echo "[INFO] $(date -u +%Y-%m-%dT%H:%M:%SZ) Input received ($(wc -c < "$INPUT_FI
 # Run the SDK stop hook — it decides whether to block exit or allow it
 RESULT=$(babysitter hook:run --hook-type stop --harness codex --plugin-root "$PLUGIN_ROOT" --json < "$INPUT_FILE" 2>>"$LOG_DIR/babysitter-stop-hook-stderr.log")
 EXIT_CODE=$?
+if [ $EXIT_CODE -ne 0 ]; then
+  RESULT=$(babysitter hook:run --hook-type stop --harness claude-code --plugin-root "$PLUGIN_ROOT" --json < "$INPUT_FILE" 2>>"$LOG_DIR/babysitter-stop-hook-stderr.log")
+  EXIT_CODE=$?
+fi
 
 echo "[INFO] $(date -u +%Y-%m-%dT%H:%M:%SZ) CLI exit code=$EXIT_CODE" >> "$LOG_FILE" 2>/dev/null
 

@@ -10,7 +10,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { runRaw, supports } = require('./sdk-cli');
 
 // All 13 supported hook types
 const HOOK_TYPES = [
@@ -58,38 +58,37 @@ function serializePayload(payload) {
  * @param {object} options
  */
 function logToBabysitter(hookType, serializedPayload, options) {
-  // Build the CLI arguments; allow callers to pass extra flags via options.cliArgs
-  const cliArgs = ['hook:log', '--hook', hookType].concat(
-    Array.isArray(options.cliArgs) ? options.cliArgs : []
-  );
+  const logFile =
+    options.logFile ||
+    process.env.BABYSITTER_HOOK_LOG_FILE ||
+    path.join(process.cwd(), '.a5c', 'logs', 'hooks.jsonl');
 
-  // Attempt to find the babysitter binary on PATH or in node_modules/.bin
-  const babysitterBin = options.babysitterBin || 'babysitter';
+  const entry = {
+    hookType,
+    ts: new Date().toISOString(),
+    payload: (() => {
+      try { return JSON.parse(serializedPayload); } catch (_) { return serializedPayload; }
+    })(),
+  };
 
   try {
-    const result = spawnSync(babysitterBin, cliArgs, {
-      input: serializedPayload,
-      encoding: 'utf8',
-      timeout: 5000, // 5-second safety timeout
-      // Do not throw on non-zero exit; handle below
-    });
-
-    if (result.error) {
-      // CLI not found or failed to spawn — log to stderr and continue
-      process.stderr.write(
-        `[hook-dispatcher] babysitter CLI unavailable for hook "${hookType}": ${result.error.message}\n`
-      );
-    } else if (result.status !== 0) {
-      process.stderr.write(
-        `[hook-dispatcher] babysitter CLI exited with status ${result.status} for hook "${hookType}"` +
-          (result.stderr ? `: ${result.stderr}` : '') +
-          '\n'
-      );
-    }
+    fs.mkdirSync(path.dirname(logFile), { recursive: true });
+    fs.appendFileSync(logFile, JSON.stringify(entry) + '\n', 'utf8');
   } catch (err) {
-    process.stderr.write(
-      `[hook-dispatcher] Unexpected error calling babysitter CLI for hook "${hookType}": ${err.message}\n`
-    );
+    process.stderr.write(`[hook-dispatcher] Failed writing local hook log "${logFile}": ${err.message}\n`);
+  }
+
+  if (!supports('hook:log')) {
+    return;
+  }
+
+  const cliArgs = ['hook:log', '--hook-type', hookType, '--log-file', logFile, '--json']
+    .concat(Array.isArray(options.cliArgs) ? options.cliArgs : []);
+
+  const result = runRaw(cliArgs, { timeout: 5000 });
+  if (!result.ok) {
+    const detail = result.stderr || result.stdout || `exit code ${result.exitCode}`;
+    process.stderr.write(`[hook-dispatcher] hook:log failed for "${hookType}": ${detail}\n`);
   }
 }
 

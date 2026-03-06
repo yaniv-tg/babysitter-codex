@@ -304,19 +304,19 @@ Session commands manage the lifecycle of agent sessions within a run.
 ### Associating a session with a run
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 session:associate --run-id <RUN_ID> --session-id <SESSION_ID> --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:associate --session-id <SESSION_ID> --state-dir .a5c --run-id <RUN_ID> --json
 ```
 
 ### Resuming a session
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 session:resume --run-id <RUN_ID> --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:resume --session-id <SESSION_ID> --state-dir .a5c --run-id <RUN_ID> --json
 ```
 
 ### Checking iteration state
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 session:check-iteration --run-id <RUN_ID> --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:check-iteration --session-id <SESSION_ID> --state-dir .a5c --json
 ```
 
 Returns whether the current iteration should continue or halt, based on run state.
@@ -324,19 +324,19 @@ Returns whether the current iteration should continue or halt, based on run stat
 ### Posting an iteration message
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 session:iteration-message --run-id <RUN_ID> --message "<text>" --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:iteration-message --iteration <N> --run-id <RUN_ID> --json
 ```
 
 ### Reading the last session message
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 session:last-message --run-id <RUN_ID> --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:last-message --transcript-path <path/to/transcript.jsonl> --json
 ```
 
 ### Updating session metadata
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 session:update --run-id <RUN_ID> --json < session-patch.json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:update --session-id <SESSION_ID> --state-dir .a5c --iteration <N> --last-iteration-at <ISO8601> --json
 ```
 
 ---

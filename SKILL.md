@@ -1,4 +1,4 @@
----
+﻿---
 name: babysitter-codex
 description: >-
   Orchestrate complex, multi-step AI workflows with quality convergence loops,
@@ -45,12 +45,26 @@ all orchestration:
 ```
 babysitter run:create   --process-id <id> --entry <path>#<export> ...
 babysitter run:iterate  <runDir> --json --iteration <n>
-babysitter run:status   <runId> --json
-babysitter task:list    <runId> --pending --json
-babysitter task:post    <runId> <effectId> --status ok --value <file> --json
-babysitter profile:read --user --json
-babysitter health
+babysitter run:status   <runDir> --json
+babysitter task:list    <runDir> --pending --json
+babysitter task:post    <runDir> <effectId> --status ok --value <file> --json
 ```
+
+Compatibility levels:
+
+- Core required: `run:create`, `run:iterate`, `run:status`, `task:list`, `task:post`
+- Optional advanced: `session:*`, `profile:*`, `skill:*`, `health`
+
+If advanced commands are missing, continue in `compat-core` mode and do not
+block orchestration.
+
+### Canonical argument shapes (SDK 0.0.173)
+
+- `run:status <runDir> --json`
+- `task:list <runDir> --json`
+- `session:init --session-id <id> --state-dir .a5c --json`
+- `session:associate --session-id <id> --state-dir .a5c --run-id <runId> --json`
+- `hook:log --hook-type <type> --log-file .a5c/logs/hooks.jsonl --json`
 
 ## Result Posting Protocol
 

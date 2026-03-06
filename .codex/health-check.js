@@ -1,7 +1,5 @@
 'use strict';
-const { execFileSync } = require('child_process');
-
-const CLI = 'babysitter';
+const { runJson, supports, getSupportedCommands } = require('./sdk-cli');
 
 /**
  * Run SDK health check.
@@ -9,14 +7,29 @@ const CLI = 'babysitter';
  * @returns {Object} Health status with overall status and per-check details
  */
 function checkHealth(verbose) {
-  const args = ['health', '--json'];
-  if (verbose) args.push('--verbose');
-  try {
-    const result = execFileSync(CLI, args, { encoding: 'utf8', timeout: 15000 });
-    return JSON.parse(result);
-  } catch (err) {
-    return { status: 'unhealthy', error: err.message };
+  if (supports('health')) {
+    const args = ['health', '--json'];
+    if (verbose) args.push('--verbose');
+    const result = runJson(args, { timeout: 15000 });
+    if (result.ok && result.parsed) return result.parsed;
+    return { status: 'unhealthy', error: result.stderr || result.stdout || 'health check failed' };
   }
+
+  // Compatibility mode: old SDKs do not ship `health`.
+  const versionRes = runJson(['version'], { timeout: 10000 });
+  const hasCore =
+    supports('run:create') &&
+    supports('run:iterate') &&
+    supports('run:status') &&
+    supports('task:list') &&
+    supports('task:post');
+  return {
+    status: hasCore ? 'degraded' : 'unhealthy',
+    mode: 'compat-core',
+    version: versionRes.parsed || String(versionRes.stdout || '').trim() || null,
+    availableCommands: Array.from(getSupportedCommands()),
+    missing: ['health'],
+  };
 }
 
 /**
@@ -25,15 +38,9 @@ function checkHealth(verbose) {
  * @returns {Object} Parsed configuration object, or error descriptor on failure.
  */
 function showConfig() {
-  try {
-    const result = execFileSync(CLI, ['configure', 'show', '--json'], {
-      encoding: 'utf8',
-      timeout: 10000,
-    });
-    return JSON.parse(result);
-  } catch (err) {
-    return { error: err.message };
-  }
+  if (!supports('configure')) return { unsupported: true, command: 'configure show' };
+  const result = runJson(['configure', 'show', '--json'], { timeout: 10000 });
+  return result.parsed || { error: result.stderr || result.stdout || 'configure show failed' };
 }
 
 /**
@@ -44,26 +51,9 @@ function showConfig() {
  *                   failure.
  */
 function validateConfig() {
-  try {
-    const result = execFileSync(CLI, ['configure', 'validate', '--json'], {
-      encoding: 'utf8',
-      timeout: 10000,
-    });
-    return JSON.parse(result);
-  } catch (err) {
-    // A non-zero exit (invalid config) still emits JSON on stdout in many CLI
-    // implementations.  Try to extract it from the combined error output before
-    // falling back to the plain error message.
-    const raw = (err.stdout || '').toString().trim();
-    if (raw) {
-      try {
-        return JSON.parse(raw);
-      } catch (_) {
-        // fall through
-      }
-    }
-    return { valid: false, error: err.message };
-  }
+  if (!supports('configure')) return { unsupported: true, command: 'configure validate', valid: null };
+  const result = runJson(['configure', 'validate', '--json'], { timeout: 10000 });
+  return result.parsed || { valid: false, error: result.stderr || result.stdout || 'configure validate failed' };
 }
 
 /**
@@ -73,15 +63,9 @@ function validateConfig() {
  *                   or an error descriptor on failure.
  */
 function showPaths() {
-  try {
-    const result = execFileSync(CLI, ['configure', 'paths', '--json'], {
-      encoding: 'utf8',
-      timeout: 10000,
-    });
-    return JSON.parse(result);
-  } catch (err) {
-    return { error: err.message };
-  }
+  if (!supports('configure')) return { unsupported: true, command: 'configure paths' };
+  const result = runJson(['configure', 'paths', '--json'], { timeout: 10000 });
+  return result.parsed || { error: result.stderr || result.stdout || 'configure paths failed' };
 }
 
 /**

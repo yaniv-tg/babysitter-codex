@@ -1,21 +1,21 @@
 'use strict';
-const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-
-const CLI = 'babysitter';
+const { runJson, supports } = require('./sdk-cli');
 
 function runCli(args) {
-  try {
-    const result = execFileSync(CLI, args, { encoding: 'utf8', timeout: 15000 });
-    try { return JSON.parse(result); } catch { return result.trim(); }
-  } catch (err) {
-    const stderr = err.stderr ? err.stderr.toString() : '';
-    const stdout = err.stdout ? err.stdout.toString() : '';
-    if (stderr.includes('no_profile') || stdout.includes('no_profile')) return null;
-    throw err;
+  const command = args[0];
+  if (String(command).startsWith('profile:') && !supports(command)) {
+    return null;
   }
+  const result = runJson(args, { timeout: 15000 });
+  if (!result.ok) {
+    const combined = `${result.stderr || ''}\n${result.stdout || ''}`;
+    if (combined.includes('no_profile')) return null;
+    return null;
+  }
+  return result.parsed || String(result.stdout || '').trim();
 }
 
 function writeTempJson(data) {

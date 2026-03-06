@@ -1,48 +1,19 @@
 'use strict';
-const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-
-const CLI = 'babysitter';
-const BABYSITTER_PKG = '@a5c-ai/babysitter-sdk@0.0.173';
+const { runJson, supports } = require('./sdk-cli');
 
 /**
- * Run a babysitter CLI sub-command via npx and return parsed JSON output.
+ * Run a babysitter CLI sub-command and return parsed JSON output.
  * @param {string[]} subArgs - Arguments to pass after the package name
  * @returns {Object|null} Parsed JSON result or null on error
  */
 function runBabysitter(subArgs) {
-  const cmdArgs = ['-y', BABYSITTER_PKG, ...subArgs];
-  let raw;
-  try {
-    raw = execFileSync('npx', cmdArgs, {
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env },
-    });
-  } catch (err) {
-    const stderr = (err.stderr || '').toString().trim();
-    const stdout = (err.stdout || '').toString().trim();
-    console.error(`[discovery] babysitter command failed:\n  cmd: npx ${cmdArgs.join(' ')}\n  stderr: ${stderr}\n  stdout: ${stdout}`);
-    return null;
-  }
-
-  // Strip ANSI escape codes
-  const clean = raw.replace(/\x1b\[[0-9;]*m/g, '').trim();
-
-  // Extract first JSON object or array from output (ignore surrounding log lines)
-  const jsonMatch = clean.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-  if (!jsonMatch) {
-    console.error(`[discovery] No JSON found in babysitter output:\n${clean}`);
-    return null;
-  }
-
-  try {
-    return JSON.parse(jsonMatch[0]);
-  } catch (parseErr) {
-    console.error(`[discovery] Failed to parse JSON from babysitter output: ${parseErr.message}\nRaw:\n${clean}`);
-    return null;
-  }
+  const command = subArgs[0];
+  if (command && String(command).includes(':') && !supports(command)) return null;
+  const result = runJson(subArgs);
+  if (!result.ok) return null;
+  return result.parsed || null;
 }
 
 /**
@@ -57,6 +28,15 @@ function runBabysitter(subArgs) {
  * @returns {Object|null} Discovery results or null on error
  */
 function discoverSkills(options = {}) {
+  if (!supports('skill:discover')) {
+    return {
+      mode: 'compat-core',
+      skills: [],
+      agents: [],
+      message: 'skill:discover unsupported by this SDK build; using local/manual skill loading only.',
+    };
+  }
+
   const args = ['skill:discover', '--json'];
 
   if (options.pluginRoot) {
@@ -93,6 +73,14 @@ function discoverSkills(options = {}) {
  * @returns {Object|null} Fetched skills or null on error
  */
 function fetchRemoteSkills(sourceType, url) {
+  if (!supports('skill:fetch-remote')) {
+    return {
+      mode: 'compat-core',
+      skills: [],
+      message: 'skill:fetch-remote unsupported by this SDK build.',
+    };
+  }
+
   if (!sourceType || !url) {
     console.error('[discovery] fetchRemoteSkills: sourceType and url are required');
     return null;
@@ -117,7 +105,6 @@ function parseProcessMarkers(filePath) {
   const result = { skills: [], agents: [] };
 
   if (!filePath) {
-    console.error('[discovery] parseProcessMarkers: filePath is required');
     return result;
   }
 
@@ -125,7 +112,6 @@ function parseProcessMarkers(filePath) {
   try {
     content = fs.readFileSync(filePath, 'utf8');
   } catch (readErr) {
-    console.error(`[discovery] parseProcessMarkers: failed to read file "${filePath}": ${readErr.message}`);
     return result;
   }
 

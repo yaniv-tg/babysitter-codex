@@ -7,9 +7,9 @@
  * session ID in .a5c/session.json relative to the repository root.
  */
 
-const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { runJson, supports } = require('../sdk-cli');
 
 const REPO_ROOT = process.env.REPO_ROOT || path.resolve(__dirname, '..', '..');
 const A5C_DIR = path.join(REPO_ROOT, '.a5c');
@@ -19,40 +19,45 @@ function main() {
   // Ensure .a5c directory exists
   fs.mkdirSync(A5C_DIR, { recursive: true });
 
-  let output;
-  try {
-    output = execSync(
-      'npx -y @a5c-ai/babysitter-sdk@0.0.173 session:init --json',
-      { encoding: 'utf8', stdio: ['inherit', 'pipe', 'inherit'] }
-    );
-  } catch (err) {
-    console.error('[session-init] Failed to call babysitter session:init:', err.message);
+  if (!supports('session:init')) {
+    const fallback = {
+      sessionId: `compat-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      stateDir: A5C_DIR,
+      mode: 'compat-core',
+      reason: 'session:init unsupported or unavailable',
+    };
+    fs.writeFileSync(SESSION_FILE, JSON.stringify(fallback, null, 2) + '\n', 'utf8');
+    console.warn('[session-init] session:init unavailable; wrote compatibility session record.');
+    process.exit(0);
+  }
+
+  const requestedSessionId = process.env.BABYSITTER_SESSION_ID || process.env.CODEX_SESSION_ID || `codex-${Date.now()}`;
+  const result = runJson(
+    ['session:init', '--session-id', requestedSessionId, '--state-dir', A5C_DIR, '--json'],
+    { timeout: 15000 }
+  );
+  if (!result.ok) {
+    console.error('[session-init] session:init failed:', result.stderr || result.stdout || `exit code ${result.exitCode}`);
     process.exit(1);
   }
 
-  let sessionData;
-  try {
-    sessionData = JSON.parse(output.trim());
-  } catch (err) {
-    console.error('[session-init] Failed to parse babysitter output as JSON:', err.message);
-    console.error('[session-init] Raw output:', output);
-    process.exit(1);
-  }
-
-  const sessionId = sessionData.sessionId || sessionData.id || sessionData.session_id;
-  if (!sessionId) {
+  const sessionData = result.parsed || {};
+  const resolvedSessionId = sessionData.sessionId || sessionData.id || sessionData.session_id;
+  if (!resolvedSessionId) {
     console.error('[session-init] Could not extract session ID from babysitter output:', JSON.stringify(sessionData));
     process.exit(1);
   }
 
   const sessionRecord = {
-    sessionId,
+    sessionId: resolvedSessionId,
+    stateDir: A5C_DIR,
     createdAt: new Date().toISOString(),
     raw: sessionData,
   };
 
   fs.writeFileSync(SESSION_FILE, JSON.stringify(sessionRecord, null, 2) + '\n', 'utf8');
-  console.log(`[session-init] Session initialized. ID: ${sessionId}`);
+  console.log(`[session-init] Session initialized. ID: ${resolvedSessionId}`);
   console.log(`[session-init] Session data written to: ${SESSION_FILE}`);
 
   process.exit(0);

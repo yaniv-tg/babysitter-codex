@@ -13,6 +13,7 @@ const { join } = require('path');
 const crypto = require('crypto');
 
 const { readSessionContext } = require('./hooks/utils.js');
+const { runRaw, runJson, supports, parseJsonish } = require('./sdk-cli');
 
 const LARGE_RESULT_THRESHOLD = 1 * 1024 * 1024; // 1 MiB
 const MAX_RETRIES = 3;
@@ -51,12 +52,11 @@ async function execWithRetry(args, retries) {
       await sleep(backoffMs);
     }
     try {
-      const stdout = execFileSync(
-        'npx',
-        ['-y', '@a5c-ai/babysitter-sdk@0.0.173', ...args],
-        { encoding: 'utf8' }
-      );
-      return { stdout, success: true };
+      const run = runRaw(args, { timeout: 30000 });
+      if (!run.ok) {
+        throw new Error(run.stderr || run.stdout || `command failed: ${args.join(' ')}`);
+      }
+      return { stdout: run.stdout, success: true };
     } catch (err) {
       lastError = err;
       if (attempt < retries) {
@@ -116,6 +116,9 @@ function writeResultData(runDir, effectId, serialized) {
  * @returns {Promise<object>} Posting confirmation object
  */
 async function postTaskResult(runDir, effectId, result, options = {}) {
+  if (!supports('task:post')) {
+    throw new Error('task:post is not supported by this babysitter CLI build.');
+  }
   // Enrich result with session context if available
   const session = readSessionContext(options.repoRoot);
   if (session && session.sessionId) {
@@ -157,11 +160,7 @@ async function postTaskResult(runDir, effectId, result, options = {}) {
   }
 
   let parsed;
-  try {
-    parsed = JSON.parse(stdout);
-  } catch (_) {
-    parsed = { raw: stdout };
-  }
+  parsed = parseJsonish(stdout) || { raw: stdout };
 
   return {
     success: true,
@@ -188,6 +187,9 @@ async function postTaskResult(runDir, effectId, result, options = {}) {
  * @returns {Promise<object>} Error confirmation object
  */
 async function postTaskError(runDir, effectId, error, options = {}) {
+  if (!supports('task:post')) {
+    throw new Error('task:post is not supported by this babysitter CLI build.');
+  }
   const errorPayload = {
     message: error instanceof Error ? error.message : String(error),
     stack: error instanceof Error ? error.stack : undefined,
@@ -240,11 +242,7 @@ async function postTaskError(runDir, effectId, error, options = {}) {
   }
 
   let parsed;
-  try {
-    parsed = JSON.parse(stdout);
-  } catch (_) {
-    parsed = { raw: stdout };
-  }
+  parsed = parseJsonish(stdout) || { raw: stdout };
 
   return {
     success: true,
@@ -264,6 +262,14 @@ async function postTaskError(runDir, effectId, error, options = {}) {
  * @returns {Promise<object>} Task details object
  */
 async function showTask(runDir, effectId) {
+  if (!supports('task:show')) {
+    return {
+      unsupported: true,
+      command: 'task:show',
+      runDir,
+      effectId,
+    };
+  }
   const args = [
     'task:show',
     runDir,
@@ -280,14 +286,7 @@ async function showTask(runDir, effectId) {
     );
   }
 
-  let parsed;
-  try {
-    parsed = JSON.parse(stdout);
-  } catch (_) {
-    parsed = { raw: stdout };
-  }
-
-  return parsed;
+  return parseJsonish(stdout) || { raw: stdout };
 }
 
 /**
@@ -299,6 +298,14 @@ async function showTask(runDir, effectId) {
  * @returns {Promise<object>} Execution summary object
  */
 async function executeNodeTasks(runDir, options = {}) {
+  if (!supports('run:execute-tasks')) {
+    return {
+      unsupported: true,
+      command: 'run:execute-tasks',
+      runDir,
+      executed: 0,
+    };
+  }
   const args = [
     'run:execute-tasks',
     runDir,
@@ -315,14 +322,7 @@ async function executeNodeTasks(runDir, options = {}) {
     );
   }
 
-  let parsed;
-  try {
-    parsed = JSON.parse(stdout);
-  } catch (_) {
-    parsed = { raw: stdout };
-  }
-
-  return parsed;
+  return parseJsonish(stdout) || { raw: stdout };
 }
 
 /**

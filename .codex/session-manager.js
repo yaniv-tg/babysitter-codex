@@ -1,63 +1,58 @@
 'use strict';
 
-/**
- * session-manager.js
- *
- * Full session lifecycle management module for the babysitter-codex harness.
- * Wraps all 8 babysitter CLI session commands using execFileSync.
- */
+const path = require('path');
+const { readSessionContext } = require('./hooks/utils');
+const { runJson, supports } = require('./sdk-cli');
 
-const { execFileSync } = require('child_process');
+function unsupported(command) {
+  return {
+    ok: false,
+    unsupported: true,
+    command,
+    message: `SDK command "${command}" is not available in this babysitter CLI build.`,
+  };
+}
 
-const BABYSITTER_BIN = 'babysitter';
-const DEFAULT_ENCODING = 'utf8';
-const DEFAULT_TIMEOUT_MS = 30000;
+function resolveSessionContext(options = {}) {
+  const persisted = readSessionContext(options.repoRoot);
+  const sessionId =
+    options.sessionId ||
+    process.env.BABYSITTER_SESSION_ID ||
+    process.env.CODEX_SESSION_ID ||
+    (persisted && (persisted.sessionId || persisted.id || persisted.session_id)) ||
+    null;
+  const stateDir =
+    options.stateDir ||
+    process.env.BABYSITTER_STATE_DIR ||
+    (persisted && persisted.stateDir) ||
+    path.join(options.repoRoot || process.cwd(), '.a5c');
 
-/**
- * Execute a babysitter CLI command and return parsed JSON output.
- *
- * @param {string[]} args - CLI arguments to pass after the babysitter binary.
- * @param {object} [execOptions] - Optional overrides for execFileSync options.
- * @returns {object} Parsed JSON result from stdout.
- * @throws {Error} If the command fails or output cannot be parsed.
- */
-function runBabysitter(args, execOptions) {
-  const options = Object.assign(
-    {
-      encoding: DEFAULT_ENCODING,
-      timeout: DEFAULT_TIMEOUT_MS,
-    },
-    execOptions || {}
-  );
+  return { sessionId, stateDir };
+}
 
-  let stdout;
-  try {
-    stdout = execFileSync(BABYSITTER_BIN, args, options);
-  } catch (err) {
-    const stderr = err.stderr ? String(err.stderr).trim() : '';
-    const message =
-      `babysitter command failed: ${BABYSITTER_BIN} ${args.join(' ')}\n` +
-      `Exit code: ${err.status !== undefined ? err.status : 'unknown'}\n` +
-      (stderr ? `Stderr: ${stderr}` : '');
-    const wrapped = new Error(message);
-    wrapped.originalError = err;
-    wrapped.stderr = stderr;
-    wrapped.exitCode = err.status;
-    throw wrapped;
+function sessionArgs(command, options = {}) {
+  const ctx = resolveSessionContext(options);
+  if (!ctx.sessionId) {
+    throw new Error(`${command}: sessionId is required (provide options.sessionId or initialize .a5c/session.json)`);
   }
-
-  try {
-    return JSON.parse(stdout);
-  } catch (parseErr) {
-    const message =
-      `Failed to parse JSON from babysitter output.\n` +
-      `Command: ${BABYSITTER_BIN} ${args.join(' ')}\n` +
-      `Raw output: ${String(stdout).trim()}`;
-    const wrapped = new Error(message);
-    wrapped.originalError = parseErr;
-    wrapped.rawOutput = stdout;
-    throw wrapped;
+  if (!ctx.stateDir) {
+    throw new Error(`${command}: stateDir is required`);
   }
+  return ['--session-id', ctx.sessionId, '--state-dir', ctx.stateDir];
+}
+
+function runSessionCommand(command, args) {
+  if (!supports(command)) return unsupported(command);
+  const res = runJson([command, ...args, '--json']);
+  if (!res.ok) {
+    return {
+      ok: false,
+      command,
+      message: res.stderr || res.stdout || `Failed to run ${command}`,
+      exitCode: res.exitCode,
+    };
+  }
+  return res.parsed || { ok: true };
 }
 
 /**
@@ -80,14 +75,10 @@ function initSession(options) {
     throw new Error('initSession: options.stateDir is required');
   }
 
-  const args = [
-    'session:init',
+  return runSessionCommand('session:init', [
     '--session-id', options.sessionId,
     '--state-dir', options.stateDir,
-    '--json',
-  ];
-
-  return runBabysitter(args);
+  ]);
 }
 
 /**
@@ -98,20 +89,17 @@ function initSession(options) {
  * CLI: babysitter session:associate --run-id <runId> --json
  *
  * @param {string} runId - The run identifier to associate.
+ * @param {object} [options]
+ * @param {string} [options.sessionId]
+ * @param {string} [options.stateDir]
  * @returns {object} Parsed JSON response.
  */
-function associateSession(runId) {
+function associateSession(runId, options = {}) {
   if (!runId) {
     throw new Error('associateSession: runId is required');
   }
 
-  const args = [
-    'session:associate',
-    '--run-id', runId,
-    '--json',
-  ];
-
-  return runBabysitter(args);
+  return runSessionCommand('session:associate', [...sessionArgs('associateSession', options), '--run-id', runId]);
 }
 
 /**
@@ -127,26 +115,22 @@ function associateSession(runId) {
  * @param {string} options.runsDir - Directory containing run data.
  * @returns {object} Parsed JSON response.
  */
-function resumeSession(sessionId, runId, options) {
+function resumeSession(sessionId, runId, options = {}) {
   if (!sessionId) {
     throw new Error('resumeSession: sessionId is required');
   }
   if (!runId) {
     throw new Error('resumeSession: runId is required');
   }
-  if (!options || !options.runsDir) {
-    throw new Error('resumeSession: options.runsDir is required');
+  const ctx = resolveSessionContext({ ...options, sessionId });
+  if (!ctx.stateDir) {
+    throw new Error('resumeSession: stateDir is required');
   }
 
-  const args = [
-    'session:resume',
-    '--session-id', sessionId,
-    '--run-id', runId,
-    '--runs-dir', options.runsDir,
-    '--json',
-  ];
-
-  return runBabysitter(args);
+  const args = ['--session-id', sessionId, '--run-id', runId, '--state-dir', ctx.stateDir];
+  if (options.maxIterations !== undefined) args.push('--max-iterations', String(options.maxIterations));
+  if (options.runsDir) args.push('--runs-dir', options.runsDir);
+  return runSessionCommand('session:resume', args);
 }
 
 /**
@@ -158,13 +142,8 @@ function resumeSession(sessionId, runId, options) {
  *
  * @returns {object} Parsed JSON response representing current session state.
  */
-function getSessionState() {
-  const args = [
-    'session:state',
-    '--json',
-  ];
-
-  return runBabysitter(args);
+function getSessionState(options = {}) {
+  return runSessionCommand('session:state', sessionArgs('getSessionState', options));
 }
 
 /**
@@ -179,14 +158,14 @@ function getSessionState() {
  * @param {string} [fields.lastIterationAt] - ISO 8601 timestamp of the last iteration.
  * @returns {object} Parsed JSON response.
  */
-function updateSession(fields) {
+function updateSession(fields, options = {}) {
   if (!fields || (fields.iteration === undefined && !fields.lastIterationAt)) {
     throw new Error(
       'updateSession: at least one of fields.iteration or fields.lastIterationAt is required'
     );
   }
 
-  const args = ['session:update'];
+  const args = sessionArgs('updateSession', options);
 
   if (fields.iteration !== undefined) {
     args.push('--iteration', String(fields.iteration));
@@ -195,9 +174,7 @@ function updateSession(fields) {
     args.push('--last-iteration-at', fields.lastIterationAt);
   }
 
-  args.push('--json');
-
-  return runBabysitter(args);
+  return runSessionCommand('session:update', args);
 }
 
 /**
@@ -209,13 +186,8 @@ function updateSession(fields) {
  *
  * @returns {object} Parsed JSON response with iteration check result.
  */
-function checkIteration() {
-  const args = [
-    'session:check-iteration',
-    '--json',
-  ];
-
-  return runBabysitter(args);
+function checkIteration(options = {}) {
+  return runSessionCommand('session:check-iteration', sessionArgs('checkIteration', options));
 }
 
 /**
@@ -247,16 +219,12 @@ function getIterationMessage(iteration, runId, options) {
     throw new Error('getIterationMessage: options.pluginRoot is required');
   }
 
-  const args = [
-    'session:iteration-message',
+  return runSessionCommand('session:iteration-message', [
     '--iteration', String(iteration),
     '--run-id', runId,
     '--runs-dir', options.runsDir,
     '--plugin-root', options.pluginRoot,
-    '--json',
-  ];
-
-  return runBabysitter(args);
+  ]);
 }
 
 /**
@@ -274,13 +242,9 @@ function getLastMessage(transcriptPath) {
     throw new Error('getLastMessage: transcriptPath is required');
   }
 
-  const args = [
-    'session:last-message',
+  return runSessionCommand('session:last-message', [
     '--transcript-path', transcriptPath,
-    '--json',
-  ];
-
-  return runBabysitter(args);
+  ]);
 }
 
 module.exports = {

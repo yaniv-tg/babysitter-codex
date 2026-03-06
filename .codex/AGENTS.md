@@ -30,13 +30,13 @@ npx -y @a5c-ai/babysitter-sdk@0.0.173 task:show <runDir> <effectId>
 ### Listing tasks for a run
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 task:list --run-id <RUN_ID> --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 task:list <runDir> --json
 ```
 
 ### Checking run status
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 run:status --run-id <RUN_ID> --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 run:status <runDir> --json
 ```
 
 ### Creating a run
@@ -54,61 +54,61 @@ npx -y @a5c-ai/babysitter-sdk@0.0.173 run:iterate <runDir> --json --iteration <N
 ### Rebuilding run state
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 run:rebuild-state --run-id <RUN_ID> --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 run:rebuild-state <runDir> --json
 ```
 
 ### Repairing a run journal
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 run:repair-journal --run-id <RUN_ID> --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 run:repair-journal <runDir> --json
 ```
 
 ### Executing pending tasks directly
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 run:execute-tasks --run-id <RUN_ID> --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 run:execute-tasks <runDir> --json
 ```
 
 ### Initializing a session
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 session:init --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:init --session-id <SESSION_ID> --state-dir .a5c --json
 ```
 
 ### Associating a session with a run
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 session:associate --run-id <RUN_ID> --session-id <SESSION_ID> --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:associate --session-id <SESSION_ID> --state-dir .a5c --run-id <RUN_ID> --json
 ```
 
 ### Resuming a session
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 session:resume --run-id <RUN_ID> --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:resume --session-id <SESSION_ID> --state-dir .a5c --run-id <RUN_ID> --json
 ```
 
 ### Checking iteration state
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 session:check-iteration --run-id <RUN_ID> --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:check-iteration --session-id <SESSION_ID> --state-dir .a5c --json
 ```
 
 ### Posting an iteration message
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 session:iteration-message --run-id <RUN_ID> --message "<text>" --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:iteration-message --iteration <N> --run-id <RUN_ID> --json
 ```
 
 ### Reading the last session message
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 session:last-message --run-id <RUN_ID> --json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:last-message --transcript-path <path/to/transcript.jsonl> --json
 ```
 
 ### Updating session metadata
 
 ```bash
-npx -y @a5c-ai/babysitter-sdk@0.0.173 session:update --run-id <RUN_ID> --json < session-patch.json
+npx -y @a5c-ai/babysitter-sdk@0.0.173 session:update --session-id <SESSION_ID> --state-dir .a5c --iteration <N> --last-iteration-at <ISO8601> --json
 ```
 
 ### Profile commands
