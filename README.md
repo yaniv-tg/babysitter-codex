@@ -13,6 +13,10 @@ This project was created by Babysitter already running on Codex.
 - Compatibility mode for SDK builds that expose only core run/task commands
 - Deterministic per-run trace log at `<runDir>/run-trace.jsonl`
 
+## Version Control Documentation
+
+- See [CHANGELOG.md](./CHANGELOG.md) for versioned updates and latest release notes.
+
 ## Important: No Native /babysitter Slash Commands
 
 Codex does not have built-in `/babysitter:*` commands.

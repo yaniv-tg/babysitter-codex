@@ -13,6 +13,7 @@
   },
   "files": [
     "SKILL.md",
+    "CHANGELOG.md",
     "agents/",
     ".codex/",
     "bin/",
