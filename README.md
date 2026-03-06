@@ -1,26 +1,17 @@
-# babysitter-codex
+﻿# babysitter-codex
 
-Babysitter orchestration plugin for [OpenAI Codex CLI](https://github.com/openai/codex). It adds structured multi-step AI workflows with quality convergence, lifecycle hooks, and 11 slash commands.
+Babysitter orchestration plugin for [OpenAI Codex CLI](https://github.com/openai/codex). It adds structured multi-step AI workflows with quality convergence, lifecycle hooks, and 11 orchestration modes.
 
 This project was created by Babysitter already running on Codex.
 
 ## What You Get
 
-- Slash-command workflow orchestration in Codex
+- External Babysitter orchestration integrated into Codex
 - Iterative execution loop (`run:create` -> `run:iterate` -> `task:post`)
 - Breakpoint support for interactive approvals
 - Yolo mode for non-interactive auto-approval
 - Compatibility mode for SDK builds that expose only core run/task commands
 - Deterministic per-run trace log at `<runDir>/run-trace.jsonl`
-
-## Codex Compatibility Modes
-
-`babysitter-codex` now supports two runtime modes automatically:
-
-- `full` mode: SDK exposes advanced commands (`session:*`, `profile:*`, `skill:*`, `health`)
-- `compat-core` mode: SDK exposes core orchestration commands only (`run:*`, `task:*`, `version`)
-
-In `compat-core`, orchestration continues normally and unavailable commands are skipped gracefully instead of failing the run.
 
 ## Install
 
@@ -28,7 +19,7 @@ In `compat-core`, orchestration continues normally and unavailable commands are 
 npm install -g babysitter-codex
 ```
 
-Then restart Codex. The skill is automatically installed to `~/.codex/skills/babysitter-codex/`.
+Then restart Codex. The skill is installed to `~/.codex/skills/babysitter-codex/`.
 
 ## Install From Local Repo (Patched Build)
 
@@ -44,64 +35,73 @@ npm install -g .
 npm uninstall -g babysitter-codex
 ```
 
-## Quick Start
+## Important: No Native /babysitter Slash Commands
 
-In Codex:
+Codex does not have built-in `/babysitter:*` commands.
+
+Babysitter is external and activated by this skill using natural-language triggers (for example: `babysitter`, `orchestrate`, `yolo`, `resume`, `doctor`, etc.).
+
+## Quick Start (How To Actually Run It)
+
+In Codex chat, use prompts like:
 
 ```text
-/babysitter:help
-/babysitter:call implement authentication with tests
-/babysitter:yolo fix lint and failing tests
-/babysitter:resume
+babysitter help
+babysitter call implement authentication with tests
+babysitter yolo fix lint and failing tests
+babysitter resume latest incomplete run
+babysitter doctor current run
 ```
 
-## Usage
+You can also run the SDK CLI directly in terminal:
 
-In any Codex session, just describe what you want. The skill triggers automatically:
-
-```
-babysitter: implement user authentication with TDD
-orchestrate building a REST API
-babysitter resume my last run
-babysitter doctor — check run health
+```bash
+babysitter run:create --process-id <id> --entry <path>#<export> --inputs <file> --json
+babysitter run:iterate <runDir> --json --iteration 1
+babysitter task:list <runDir> --pending --json
+babysitter task:post <runDir> <effectId> --status ok --value tasks/<effectId>/output.json --json
 ```
 
-You can also invoke it explicitly with `$babysitter-codex`.
+## All Modes And How To Activate Them
 
-## Modes
+| Mode | Example prompt to activate | What it does |
+|------|----------------------------|--------------|
+| call | `babysitter call build auth with tests` | Start an orchestration run (interactive) |
+| yolo | `babysitter yolo fix failing tests end-to-end` | Fully autonomous, no breakpoints |
+| resume | `babysitter resume latest run` | Resume an existing run |
+| plan | `babysitter plan migration workflow` | Plan a workflow without executing |
+| forever | `babysitter forever monitor build health every hour` | Never-ending periodic run |
+| doctor | `babysitter doctor run 01ABC...` | Diagnose run health |
+| observe | `babysitter observe current workspace` | Launch observer dashboard |
+| help | `babysitter help` | Help and documentation |
+| project-install | `babysitter project-install this repo` | Set up a project for babysitting |
+| user-install | `babysitter user-install for backend workflows` | Set up your user profile |
+| assimilate | `babysitter assimilate https://github.com/org/method` | Assimilate external methodology |
 
-| Mode | Trigger phrases | What it does |
-|------|----------------|--------------|
-| call | "babysitter", "orchestrate", "babysit" | Start an orchestration run (interactive) |
-| yolo | "yolo", "autonomous", "non-interactive" | Fully autonomous, no breakpoints |
-| resume | "resume" | Resume an existing run |
-| plan | "plan" | Plan a workflow without executing |
-| forever | "forever", "periodic" | Never-ending periodic run |
-| doctor | "doctor", "diagnose", "health" | Diagnose run health |
-| observe | "observe", "dashboard" | Launch observer dashboard |
-| help | "help" | Help and documentation |
-| project-install | "project install", "onboard project" | Set up a project for babysitting |
-| user-install | "user install", "set up profile" | Set up your user profile |
-| assimilate | "assimilate" | Assimilate external methodology |
+## Codex Compatibility Modes
 
-## How It Works
+`babysitter-codex` supports two runtime modes automatically:
 
-Babysitter drives an orchestration loop via Codex CLI hooks:
+- `full` mode: SDK exposes advanced commands (`session:*`, `profile:*`, `skill:*`, `health`)
+- `compat-core` mode: SDK exposes core orchestration commands only (`run:*`, `task:*`, `version`)
 
-1. **SessionStart hook** initializes the babysitter session
-2. **Stop hook** detects active runs and re-invokes Codex to continue
-3. Each iteration: `run:iterate` -> execute effects -> `task:post` -> stop -> repeat
-4. Quality gates score work 0-100 and iterate until the threshold is met
+In `compat-core`, orchestration continues and unavailable advanced commands are skipped gracefully.
 
 ## Requirements
 
 - Node.js 18+
 - OpenAI Codex CLI v0.107+
-- Babysitter SDK CLI with at least: `run:create`, `run:iterate`, `run:status`, `task:list`, `task:post`
+
+The Babysitter SDK CLI is installed as a dependency of `babysitter-codex`, so users do not need a separate manual SDK install for normal usage.
+
+For contributors/debugging, the minimum effective SDK command surface is:
+- `run:create`
+- `run:iterate`
+- `run:status`
+- `task:list`
+- `task:post`
 
 ## SDK Contracts (Codex-Suitable)
-
-The harness supports both modern and reduced SDK surfaces:
 
 - Core required commands:
   - `run:create`
