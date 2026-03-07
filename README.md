@@ -82,6 +82,46 @@ After install, restart Codex so it loads the updated skill files.
 - If PowerShell blocks `npx`, use `npx.cmd`.
 - If global npm install fails with permissions, run terminal as Administrator.
 
+## Installation (macOS)
+
+### 1. Verify prerequisites
+
+```bash
+node -v
+npm -v
+codex --version
+```
+
+### 2. Install globally from npm
+
+```bash
+npm install -g babysitter-codex
+```
+
+### 3. Or install from local repo clone
+
+```bash
+cd /path/to/babysitter-codex
+npm install -g .
+```
+
+### 4. Verify install
+
+```bash
+npm ls -g babysitter-codex --depth=0
+ls -l ~/.codex/skills/babysitter-codex/.codex/hooks/*.sh
+```
+
+### 5. Restart Codex
+
+After install, restart Codex so it loads the updated skill files.
+
+### macOS notes
+
+- If shell scripts lose executable bits, rerun install or apply:
+  `chmod +x ~/.codex/skills/babysitter-codex/.codex/hooks/*.sh`
+- If `npx` is not on PATH inside Codex, install Node via `nvm` and relaunch shell.
+
 ## Installation (Linux)
 
 ### 1. Verify prerequisites
@@ -129,6 +169,12 @@ npm.cmd uninstall -g babysitter-codex
 ```
 
 ### Linux
+
+```bash
+npm uninstall -g babysitter-codex
+```
+
+### macOS
 
 ```bash
 npm uninstall -g babysitter-codex

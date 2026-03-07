@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-03-07
+
+### Added
+- First-class macOS support documentation and install verification steps.
+- Cross-platform long-session scenario runner: `test/full-session-long-run.js`.
+- GitHub Actions CI matrix for `macos-13`, `ubuntu-latest`, and `windows-2022` on Node `20` and `22`.
+- Shared SDK package resolver (`.codex/sdk-package.js`) used by runtime/test entrypoints.
+
+### Changed
+- Runtime hooks now resolve SDK package via `BABYSITTER_SDK_PACKAGE`/`BABYSITTER_SDK_VERSION` with consistent wrapper invocation.
+- `postinstall` now enforces executable bits (`+x`) for hook shell scripts on non-Windows systems.
+- `npm run test:long-scenario` now uses the cross-platform Node runner.
+
+## [0.1.3] - 2026-03-06
+
 ### Added
 - SDK capability detection with explicit compatibility reporting (`full`, `compat-core`, `unsupported`).
 - Deterministic per-run trace logging at `<runDir>/run-trace.jsonl`.
@@ -26,7 +41,7 @@ All notable changes to this project are documented in this file.
 - README now clarifies Babysitter is external to Codex and explains real activation prompts per mode.
 - Requirements documentation now clarifies SDK dependency is installed by `babysitter-codex` (non-circular install guidance).
 
-## [2.1.0] - 2026-03-05
+## [0.1.2] - 2026-03-05
 
 ### Added
 - Codex CLI skill package with one-step global install flow.
@@ -34,3 +49,13 @@ All notable changes to this project are documented in this file.
 
 ### Notes
 - Baseline for subsequent Codex compatibility and documentation improvements listed under `Unreleased`.
+
+## [0.1.1] - 2026-03-04
+
+### Added
+- Packaging and installation stability fixes for Codex skill discovery.
+
+## [0.1.0] - 2026-03-03
+
+### Added
+- Initial `babysitter-codex` release with Codex skill integration baseline.

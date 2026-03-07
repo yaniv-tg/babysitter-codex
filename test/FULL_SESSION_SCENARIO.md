@@ -36,16 +36,16 @@ node test/full-session-scenario.js --upstream-url https://github.com/a5c-ai/baby
 
 This is the strict end-to-end test that builds a simple artifact and enforces a perfect score.
 
-Run:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File ./test/full-session-long-run.ps1
-```
-
-or:
+Run (cross-platform):
 
 ```bash
 npm run test:long-scenario
+```
+
+Windows-only legacy runner (optional):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ./test/full-session-long-run.ps1
 ```
 
 ### Long-run guarantees

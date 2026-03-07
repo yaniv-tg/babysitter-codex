@@ -1,6 +1,6 @@
 {
   "name": "babysitter-codex",
-  "version": "2.1.0",
+  "version": "0.1.4",
   "description": "Babysitter orchestration plugin for OpenAI Codex CLI — multi-step AI workflows with quality convergence, lifecycle hooks, and 11 slash commands",
   "scripts": {
     "test": "node test/integration.test.js && node test/harness.test.js && node test/plugin.test.js",
@@ -8,7 +8,7 @@
     "test:integration": "node test/integration.test.js",
     "test:plugin": "node test/plugin.test.js",
     "test:scenario": "node test/full-session-scenario.js",
-    "test:long-scenario": "powershell -ExecutionPolicy Bypass -File ./test/full-session-long-run.ps1",
+    "test:long-scenario": "node test/full-session-long-run.js",
     "lint": "find .codex -name '*.js' | xargs -I{} node --check {}",
     "postinstall": "node bin/postinstall.js",
     "preuninstall": "node bin/uninstall.js"

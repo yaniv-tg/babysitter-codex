@@ -1,3 +1,7 @@
+param(
+  [switch]$AutoResolve
+)
+
 $ErrorActionPreference = "Stop"
 
 function Write-Info($msg) { Write-Host "[scenario] $msg" }
@@ -6,6 +10,12 @@ function Fail($msg) { Write-Host "[scenario] FAIL: $msg"; exit 1 }
 function Write-Utf8NoBom([string]$Path, [string]$Content) {
   $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
   [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
+}
+
+function Prompt-Default([string]$Message, [string]$Default) {
+  $answer = Read-Host "$Message [$Default]"
+  if ([string]::IsNullOrWhiteSpace($answer)) { return $Default }
+  return $answer
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -176,9 +186,10 @@ $inputs = @{
 Write-Utf8NoBom -Path $inputsPath -Content ($inputs | ConvertTo-Json)
 
 function Run-Babysitter([string[]]$commandArgs) {
+  $sdkPackage = if ($env:BABYSITTER_SDK_PACKAGE) { $env:BABYSITTER_SDK_PACKAGE } else { "@a5c-ai/babysitter-sdk@0.0.173" }
   $prev = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
-  $result = & npx.cmd -y @a5c-ai/babysitter-sdk@0.0.173 @commandArgs 2>&1
+  $result = & npx.cmd -y $sdkPackage @commandArgs 2>&1
   $ErrorActionPreference = $prev
   if ($LASTEXITCODE -ne 0) {
     Fail "Command failed: babysitter $($commandArgs -join ' ')`n$result"
@@ -232,6 +243,12 @@ $breakpointWith4Questions = $false
 $maxIterations = 400
 
 Write-Info "Running iterative orchestration..."
+if ($AutoResolve) {
+  Write-Info "Auto-resolve mode enabled for breakpoints."
+} else {
+  Write-Info "Manual breakpoint mode enabled. You will be prompted to resolve each breakpoint."
+}
+
 for ($i = 1; $i -le $maxIterations; $i++) {
   $null = Run-Babysitter @("run:iterate",$runId,"--json","--iteration","$i")
   $status = (Run-Babysitter @("run:status",$runId,"--json") | Out-String | ConvertFrom-Json)
@@ -250,6 +267,7 @@ for ($i = 1; $i -le $maxIterations; $i++) {
     if ($task.kind -eq "breakpoint") {
       $breakpointCount += 1
       $taskJsonPath = Join-Path $taskDir "task.json"
+      $taskDef = $null
       if (Test-Path $taskJsonPath) {
         $taskDef = Get-Content $taskJsonPath -Raw | ConvertFrom-Json
         $qCount = ($taskDef.metadata.payload.questions | Measure-Object).Count
@@ -257,27 +275,85 @@ for ($i = 1; $i -le $maxIterations; $i++) {
       }
 
       $bpOutput = @{}
-      switch ($task.taskId) {
-        "interview-primary" {
-          $bpOutput = @{
-            approved = $true
-            backgroundColor = $choices.backgroundColor
-            accentColor = $choices.accentColor
-            headingText = $choices.headingText
-            ctaLabel = $choices.ctaLabel
+      if ($AutoResolve) {
+        switch ($task.taskId) {
+          "interview-primary" {
+            $bpOutput = @{
+              approved = $true
+              backgroundColor = $choices.backgroundColor
+              accentColor = $choices.accentColor
+              headingText = $choices.headingText
+              ctaLabel = $choices.ctaLabel
+            }
+          }
+          "interview-secondary" {
+            $bpOutput = @{
+              approved = $true
+              styleVariant = $choices.styleVariant
+              animationStyle = $choices.animationStyle
+            }
+          }
+          default {
+            $bpOutput = @{
+              approved = $true
+              response = "Approved by full-session-long-run test"
+            }
           }
         }
-        "interview-secondary" {
-          $bpOutput = @{
-            approved = $true
-            styleVariant = $choices.styleVariant
-            animationStyle = $choices.animationStyle
+      } else {
+        Write-Host ""
+        Write-Host "[breakpoint] effectId: $effectId"
+        Write-Host "[breakpoint] taskId: $($task.taskId)"
+        if ($taskDef -and $taskDef.title) { Write-Host "[breakpoint] title: $($taskDef.title)" }
+        if ($taskDef -and $taskDef.metadata -and $taskDef.metadata.payload -and $taskDef.metadata.payload.question) {
+          Write-Host "[breakpoint] prompt: $($taskDef.metadata.payload.question)"
+        }
+        if ($taskDef -and $taskDef.metadata -and $taskDef.metadata.payload -and $taskDef.metadata.payload.questions) {
+          $idx = 1
+          foreach ($q in $taskDef.metadata.payload.questions) {
+            Write-Host "[breakpoint] q${idx}: $q"
+            $idx += 1
           }
         }
-        default {
-          $bpOutput = @{
-            approved = $true
-            response = "Approved by full-session-long-run test"
+
+        switch ($task.taskId) {
+          "interview-primary" {
+            $choices.backgroundColor = Prompt-Default "backgroundColor" $choices.backgroundColor
+            $choices.accentColor = Prompt-Default "accentColor" $choices.accentColor
+            $choices.headingText = Prompt-Default "headingText" $choices.headingText
+            $choices.ctaLabel = Prompt-Default "ctaLabel" $choices.ctaLabel
+            $bpOutput = @{
+              approved = $true
+              backgroundColor = $choices.backgroundColor
+              accentColor = $choices.accentColor
+              headingText = $choices.headingText
+              ctaLabel = $choices.ctaLabel
+            }
+          }
+          "interview-secondary" {
+            $choices.styleVariant = Prompt-Default "styleVariant" $choices.styleVariant
+            $choices.animationStyle = Prompt-Default "animationStyle" $choices.animationStyle
+            $bpOutput = @{
+              approved = $true
+              styleVariant = $choices.styleVariant
+              animationStyle = $choices.animationStyle
+            }
+          }
+          "interview-final" {
+            $approval = Prompt-Default "Approve final configuration? (yes/no)" "yes"
+            $approved = @("y","yes","true","1") -contains $approval.ToLowerInvariant()
+            $bpOutput = @{
+              approved = $approved
+              response = if ($approved) { "Approved manually" } else { "Rejected manually" }
+            }
+          }
+          default {
+            $approval = Prompt-Default "Approve breakpoint? (yes/no)" "yes"
+            $approved = @("y","yes","true","1") -contains $approval.ToLowerInvariant()
+            $bpOutput = @{
+              approved = $approved
+              response = if ($approved) { "Approved manually" } else { "Rejected manually" }
+            }
           }
         }
       }

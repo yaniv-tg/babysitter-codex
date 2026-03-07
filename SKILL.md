@@ -58,7 +58,7 @@ Compatibility levels:
 If advanced commands are missing, continue in `compat-core` mode and do not
 block orchestration.
 
-### Canonical argument shapes (SDK 0.0.173)
+### Canonical argument shapes (current Babysitter SDK)
 
 - `run:status <runDir> --json`
 - `task:list <runDir> --json`
