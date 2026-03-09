@@ -523,13 +523,14 @@ console.log('\nHook Dispatcher (detailed):');
 
 const hd = require('../.codex/hook-dispatcher');
 
-test('HOOK_TYPES contains all 13 types', () => {
+test('HOOK_TYPES contains all lifecycle types', () => {
   const expected = [
     'on-run-start', 'on-run-complete', 'on-run-fail',
     'on-task-start', 'on-task-complete', 'on-step-dispatch',
     'on-iteration-start', 'on-iteration-end',
     'on-breakpoint', 'pre-commit', 'pre-branch',
     'post-planning', 'on-score',
+    'on-tool-error', 'on-policy-block', 'on-retry',
   ];
   for (const type of expected) {
     assert.ok(hd.HOOK_TYPES.includes(type), `Missing hook type: ${type}`);

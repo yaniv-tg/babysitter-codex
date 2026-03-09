@@ -16,6 +16,7 @@ This project was created by Babysitter already running on Codex.
 ## Version Control Documentation
 
 - See [CHANGELOG.md](./CHANGELOG.md) for versioned updates and latest release notes.
+- See [docs/ROADMAP.md](./docs/ROADMAP.md) for planned feature milestones and rollout order.
 
 ## Full Test Scenarios
 
@@ -225,6 +226,14 @@ babysitter task:post <runDir> <effectId> --status ok --value tasks/<effectId>/ou
 - `compat-core` mode: SDK exposes core orchestration commands only (`run:*`, `task:*`, `version`)
 
 In `compat-core`, orchestration continues and unavailable advanced commands are skipped gracefully.
+
+## Feature Flags
+
+Advanced capabilities (event streaming, policy engine, model routing, telemetry, etc.) are gated by feature flags.
+
+- File-based flags: `.a5c/config/features.json`
+- Env-based overrides: `BABYSITTER_FEATURE_<FLAG_NAME>`
+- Defaults: `.codex/feature-flags.js`
 
 ## SDK Contracts (Codex-Suitable)
 

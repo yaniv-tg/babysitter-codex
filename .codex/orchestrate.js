@@ -27,6 +27,13 @@ const { initSession, associateSession } = require('./session-manager');
 const { runStartupHealthGate } = require('./health-check');
 const { runJson, supports, getCompatibilityReport } = require('./sdk-cli');
 const { appendTrace, resolveTracePath } = require('./trace-logger');
+const { loadFeatureFlags } = require('./feature-flags');
+const { registerSession } = require('./state-index');
+const { emitEvent, notify } = require('./event-stream');
+const { shouldBlockPlanAction, applyApprovalPolicy, nextRetryDelayMs } = require('./policy-engine');
+const { resolveModelForTask } = require('./model-router');
+const { updateTelemetry, estimateTokens, checkBudget } = require('./telemetry');
+const { loadWorkspace, resolveRepoPath } = require('./workspace-manager');
 
 // ---------------------------------------------------------------------------
 // 1. Parse CLI arguments
@@ -217,6 +224,8 @@ async function main() {
   const projectDir = process.cwd();
   const repoRoot   = projectDir;
   const stateDir = path.join(args.pluginRoot || repoRoot, '.a5c');
+  const featureFlags = loadFeatureFlags(repoRoot);
+  const workspace = loadWorkspace(repoRoot);
 
   // Run startup health gate before anything else
   if (!runStartupHealthGate(true)) { process.exit(1); }
@@ -263,6 +272,13 @@ async function main() {
   }
   const sessionId = sessionData.sessionId || sessionData.id || null;
   console.log(`[orchestrate] Session ID: ${sessionId}`);
+  if (featureFlags.sessionUx && sessionId) {
+    registerSession(repoRoot, {
+      sessionId,
+      alias: process.env.BABYSITTER_SESSION_ALIAS || null,
+      tags: (process.env.BABYSITTER_SESSION_TAGS || '').split(',').map((x) => x.trim()).filter(Boolean),
+    });
+  }
 
   // -------------------------------------------------------------------------
   // 3. run:create â€” start a run
@@ -301,6 +317,10 @@ async function main() {
     compatibilityMode: compat.mode,
     missingAdvanced: compat.missingAdvanced,
   });
+  if (featureFlags.eventStreamV1) {
+    const ev = emitEvent('run.start', { runId, sessionId, processId: args.processId }, { repoRoot });
+    if (featureFlags.notifications) notify(ev);
+  }
 
   // Associate session with this run
   if (supports('session:associate')) {
@@ -379,6 +399,7 @@ async function main() {
         op: 'run:iterate',
         error: err.message,
       });
+      if (featureFlags.eventStreamV1) emitEvent('iteration.error', { runId, iteration, error: err.message }, { repoRoot });
       finalStatus = 'error';
       break;
     }
@@ -390,6 +411,7 @@ async function main() {
       completionProof = iterateResult.completionProof;
       console.log('[orchestrate] CompletionProof received â€” run is complete.');
       appendTrace(runDir, { type: 'run.complete', runId, iteration, via: 'completionProof' });
+      if (featureFlags.eventStreamV1) emitEvent('run.complete', { runId, iteration, via: 'completionProof' }, { repoRoot });
       finalStatus = 'complete';
       break;
     }
@@ -403,6 +425,7 @@ async function main() {
     ) {
       console.log('[orchestrate] Run marked as done by iterate.');
       appendTrace(runDir, { type: 'run.complete', runId, iteration, via: 'status' });
+      if (featureFlags.eventStreamV1) emitEvent('run.complete', { runId, iteration, via: 'status' }, { repoRoot });
       finalStatus = 'complete';
       break;
     }
@@ -432,6 +455,15 @@ async function main() {
         kind,
         taskId: task.taskId || null,
       });
+      if (featureFlags.eventStreamV1) emitEvent('task.requested', { runId, iteration, effectId, kind }, { repoRoot });
+
+      if (featureFlags.planActHardening && shouldBlockPlanAction(process.env.BABYSITTER_MODE, kind)) {
+        const policyPayload = { runId, iteration, effectId, kind, reason: 'plan_mode_immutable' };
+        fireHook('on-policy-block', policyPayload);
+        appendTrace(runDir, { type: 'task.blocked', ...policyPayload });
+        if (featureFlags.eventStreamV1) emitEvent('task.blocked', policyPayload, { repoRoot });
+        continue;
+      }
 
       // -----------------------------------------------------------------------
       // 5. Breakpoint tasks â€” prompt user via stdin
@@ -465,10 +497,16 @@ async function main() {
           }
         }
         const freeform = await waitForStdinInput('Additional response (optional, press Enter to skip):\n> ');
-        const approvePrompt = /approve|approval/i.test(question)
+        const policyDecision = featureFlags.longTaskPolicies
+          ? applyApprovalPolicy(task, { policy: process.env.BABYSITTER_APPROVAL_POLICY || 'interactive' })
+          : { approved: null };
+        const approvePrompt = policyDecision.approved === null && /approve|approval/i.test(question)
           ? await waitForStdinInput('Approve this breakpoint? [Y/n]\n> ')
           : '';
-        const approved = !/^n(o)?$/i.test((approvePrompt || '').trim());
+        const approved =
+          policyDecision.approved === null
+            ? !/^n(o)?$/i.test((approvePrompt || '').trim())
+            : Boolean(policyDecision.approved);
 
         if (!effectId) continue;
 
@@ -489,9 +527,12 @@ async function main() {
         try {
           babysitter(['task:post', runDir, effectId, '--status', 'ok', '--value', outputRef, '--json']);
           appendTrace(runDir, { type: 'task.posted', runId, iteration, effectId, kind, status: 'ok', mode: 'breakpoint' });
+          if (featureFlags.eventStreamV1) emitEvent('task.posted', { runId, iteration, effectId, kind, status: 'ok', mode: 'breakpoint' }, { repoRoot });
         } catch (postErr) {
           console.error(`[orchestrate] task:post failed for breakpoint ${effectId}: ${postErr.message}`);
           appendTrace(runDir, { type: 'task.post.failed', runId, iteration, effectId, kind, error: postErr.message });
+          fireHook('on-tool-error', { runId, iteration, effectId, kind, error: postErr.message });
+          if (featureFlags.eventStreamV1) emitEvent('task.post.failed', { runId, iteration, effectId, kind, error: postErr.message }, { repoRoot });
         }
         continue;
       }
@@ -511,6 +552,11 @@ async function main() {
         || task.prompt
         || `Complete task ${effectId}`;
 
+      const routedModel = featureFlags.modelRouting ? resolveModelForTask(task, 'execute') : null;
+      if (routedModel) {
+        task.model = routedModel;
+      }
+
       console.log(`[orchestrate] Agent prompt (truncated): ${agentPrompt.slice(0, 120)}`);
 
       // Fire on-task-start hook before executing the effect
@@ -527,6 +573,27 @@ async function main() {
         exitCode: codexResult.exitCode,
         success: codexResult.success,
       });
+      if (featureFlags.costBudgets) {
+        const estimatedTokens = estimateTokens(codexResult.stdout) + estimateTokens(codexResult.stderr);
+        const updated = updateTelemetry(runDir, {
+          iterations: 1,
+          tokens: estimatedTokens,
+          estimatedCostUsd: estimatedTokens * 0.000002,
+        });
+        const budgetCheck = checkBudget(runDir, process.env.BABYSITTER_BUDGET_USD || null);
+        if (!budgetCheck.allowed) {
+          fireHook('on-policy-block', {
+            runId,
+            iteration,
+            effectId,
+            reason: 'budget_exceeded',
+            estimatedCostUsd: updated.estimatedCostUsd,
+            budgetUsd: budgetCheck.budgetUsd,
+          });
+          finalStatus = 'budget_exceeded';
+          break;
+        }
+      }
 
       // 4f. Write result and post via result-poster
       if (!effectId) {
@@ -549,6 +616,7 @@ async function main() {
           appendTrace(runDir, { type: 'task.posted', runId, iteration, effectId, kind, status: 'ok' });
           // Fire on-task-complete hook after posting result
           fireHook('on-task-complete', { effectId: task.effectId, kind, status: 'ok' });
+          if (featureFlags.eventStreamV1) emitEvent('task.complete', { runId, iteration, effectId, kind, status: 'ok' }, { repoRoot });
         } else {
           const errorResult = mapCodexError(codexResult.exitCode, codexResult.stderr);
           await postTaskError(runDir, effectId, {
@@ -560,10 +628,17 @@ async function main() {
           appendTrace(runDir, { type: 'task.posted', runId, iteration, effectId, kind, status: 'error' });
           // Fire on-task-complete hook after posting error result
           fireHook('on-task-complete', { effectId: task.effectId, kind, status: 'error' });
+          fireHook('on-tool-error', { runId, iteration, effectId, kind, error: errorResult.message });
+          if (featureFlags.longTaskPolicies) {
+            const delayMs = nextRetryDelayMs(1);
+            fireHook('on-retry', { runId, iteration, effectId, delayMs, reason: 'nonzero_exit' });
+          }
+          if (featureFlags.eventStreamV1) emitEvent('task.complete', { runId, iteration, effectId, kind, status: 'error' }, { repoRoot });
         }
       } catch (postErr) {
         console.error(`[orchestrate] task:post failed for ${effectId}: ${postErr.message}`);
         appendTrace(runDir, { type: 'task.post.failed', runId, iteration, effectId, kind, error: postErr.message });
+        fireHook('on-tool-error', { runId, iteration, effectId, kind, error: postErr.message });
       }
     }
 
@@ -590,8 +665,16 @@ async function main() {
 
     if (finalStatus === 'complete') {
       fireHook('on-run-complete', { runId, output: completionProof });
+      if (featureFlags.eventStreamV1) {
+        const ev = emitEvent('run.end', { runId, finalStatus: 'complete', iterations: iteration }, { repoRoot });
+        if (featureFlags.notifications) notify(ev);
+      }
     } else {
       fireHook('on-run-fail', { runId, error: finalStatus });
+      if (featureFlags.eventStreamV1) {
+        const ev = emitEvent('run.end', { runId, finalStatus, iterations: iteration }, { repoRoot });
+        if (featureFlags.notifications) notify(ev);
+      }
     }
     appendTrace(runDir, { type: 'run.end', runId, finalStatus, iterations: iteration });
 

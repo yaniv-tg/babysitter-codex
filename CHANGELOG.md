@@ -4,6 +4,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Foundation modules for prioritized roadmap delivery:
+  - feature flags (`.codex/feature-flags.js`)
+  - session index (`.codex/state-index.js`)
+  - event stream + notifications (`.codex/event-stream.js`)
+  - policy engine (`.codex/policy-engine.js`)
+  - model routing (`.codex/model-router.js`)
+  - telemetry + budget checks (`.codex/telemetry.js`)
+  - workspace manager (`.codex/workspace-manager.js`)
+  - MCP doctor scaffold (`.codex/mcp-doctor.js`)
+  - eval harness scaffold (`.codex/eval-harness.js`)
+  - GitHub issue workflow helper (`.codex/github-workflow.js`)
+- New hook lifecycle types: `on-tool-error`, `on-policy-block`, `on-retry`.
+- Roadmap doc and feature-request issue template.
+
+### Changed
+- `orchestrate.js` now emits structured events, supports policy/model/telemetry integration, and records session metadata for resume UX.
+- `on-turn-complete` now emits event-stream notifications.
+
 ## [0.1.4] - 2026-03-07
 
 ### Added

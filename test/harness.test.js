@@ -64,7 +64,7 @@ function testEffectMapper() {
 function testHookDispatcher() {
   const { fireHook, HOOK_TYPES } = require('../.codex/hook-dispatcher');
   assert.ok(Array.isArray(HOOK_TYPES), 'HOOK_TYPES should be an array');
-  assert.ok(HOOK_TYPES.length >= 13, 'Should have at least 13 hook types');
+  assert.ok(HOOK_TYPES.length >= 16, 'Should have at least 16 hook types');
   // fireHook should not throw for valid types
   fireHook('on-score', { score: 85 }, { skipCli: true });
   console.log('  ✓ hook-dispatcher: dispatches without errors');

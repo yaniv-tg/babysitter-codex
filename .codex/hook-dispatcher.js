@@ -27,6 +27,9 @@ const HOOK_TYPES = [
   'pre-branch',
   'post-planning',
   'on-score',
+  'on-tool-error',
+  'on-policy-block',
+  'on-retry',
 ];
 
 // Resolve the hooks base directory relative to this file's location
@@ -186,6 +189,7 @@ function invokeJsHandler(handlerPath, payload, options) {
  */
 function fireHook(hookType, payload, options) {
   options = options || {};
+  let effectivePayload = payload;
 
   // Validate hook type
   if (!HOOK_TYPES.includes(hookType)) {
@@ -196,7 +200,18 @@ function fireHook(hookType, payload, options) {
     // Still attempt to continue rather than throwing
   }
 
-  const serializedPayload = serializePayload(payload);
+  if (typeof options.transformPayload === 'function') {
+    try {
+      const transformed = options.transformPayload(payload, hookType);
+      if (transformed !== undefined) effectivePayload = transformed;
+    } catch (err) {
+      process.stderr.write(
+        `[hook-dispatcher] transformPayload failed for "${hookType}": ${err.message}\n`
+      );
+    }
+  }
+
+  const serializedPayload = serializePayload(effectivePayload);
 
   // --- Step 1: structured logging via babysitter CLI ---
   if (!options.skipCli) {
@@ -207,7 +222,7 @@ function fireHook(hookType, payload, options) {
   if (!options.skipHandlers) {
     const handlers = discoverHandlers(hookType);
     for (const handlerPath of handlers) {
-      invokeJsHandler(handlerPath, payload, options);
+      invokeJsHandler(handlerPath, effectivePayload, options);
     }
   }
 }
