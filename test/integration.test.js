@@ -47,6 +47,7 @@ function testRequire() {
     '.codex/sdk-cli.js',
     '.codex/sdk-package.js',
     '.codex/trace-logger.js',
+    '.codex/mode-handlers.js',
     '.codex/hooks/utils.js',
     '.codex/hooks/read-json.js',
     '.codex/hooks/write-json.js',

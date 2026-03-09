@@ -142,6 +142,30 @@ test('dispatch extracts arguments', () => {
   assert.strictEqual(result.args, 'build a REST API');
 });
 
+test('dispatch model command returns data payload', () => {
+  const result = cd.dispatch('/babysitter:model show');
+  assert.ok(result.dispatched);
+  assert.strictEqual(result.command, 'babysitter:model');
+  assert.ok(result.data);
+  assert.ok(result.data.action === 'show' || result.data.action === 'set');
+});
+
+test('dispatch issue command validates args', () => {
+  const result = cd.dispatch('/babysitter:issue');
+  assert.ok(result.dispatched);
+  assert.strictEqual(result.command, 'babysitter:issue');
+  assert.ok(result.data);
+  assert.strictEqual(result.data.ok, false);
+});
+
+test('dispatch resume command returns selector data', () => {
+  const result = cd.dispatch('/babysitter:resume recent');
+  assert.ok(result.dispatched);
+  assert.strictEqual(result.command, 'babysitter:resume');
+  assert.ok(result.data);
+  assert.strictEqual(result.data.selector, 'recent');
+});
+
 test('dispatch returns dispatched:false for non-commands', () => {
   const result = cd.dispatch('hello world');
   assert.strictEqual(result.dispatched, false);
