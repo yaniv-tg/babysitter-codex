@@ -34,12 +34,15 @@ function updateTelemetry(runDir, delta) {
 }
 
 function checkBudget(runDir, budgetUsd) {
-  if (!budgetUsd) return { allowed: true };
+  if (!budgetUsd) return { allowed: true, ratio: null };
   const t = readTelemetry(runDir);
+  const b = Number(budgetUsd);
+  const ratio = b > 0 ? t.estimatedCostUsd / b : null;
   return {
-    allowed: t.estimatedCostUsd <= Number(budgetUsd),
+    allowed: t.estimatedCostUsd <= b,
     estimatedCostUsd: t.estimatedCostUsd,
-    budgetUsd: Number(budgetUsd),
+    budgetUsd: b,
+    ratio,
   };
 }
 

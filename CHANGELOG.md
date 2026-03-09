@@ -22,6 +22,8 @@ All notable changes to this project are documented in this file.
 ### Changed
 - `orchestrate.js` now emits structured events, supports policy/model/telemetry integration, and records session metadata for resume UX.
 - `on-turn-complete` now emits event-stream notifications.
+- Dispatcher now executes concrete mode handlers for `model`, `issue`, `resume` selectors, and `doctor mcp`.
+- Orchestrator now supports multi-repo alias workdirs and adaptive prompt shrinking under budget pressure.
 
 ## [0.1.4] - 2026-03-07
 

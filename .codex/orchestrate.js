@@ -34,6 +34,7 @@ const { shouldBlockPlanAction, applyApprovalPolicy, nextRetryDelayMs } = require
 const { resolveModelForTask } = require('./model-router');
 const { updateTelemetry, estimateTokens, checkBudget } = require('./telemetry');
 const { loadWorkspace, resolveRepoPath } = require('./workspace-manager');
+const { shrinkPrompt } = require('./prompt-shrinker');
 
 // ---------------------------------------------------------------------------
 // 1. Parse CLI arguments
@@ -547,7 +548,7 @@ async function main() {
       }
 
       // 4c. Build codex exec prompt using effect-mapper
-      const agentPrompt = mapEffectToCodexPrompt(task)
+      let agentPrompt = mapEffectToCodexPrompt(task)
         || (task.agent && task.agent.prompt)
         || task.prompt
         || `Complete task ${effectId}`;
@@ -557,13 +558,49 @@ async function main() {
         task.model = routedModel;
       }
 
+      const requestedRepoAlias =
+        (task.repoAlias || task.repo || process.env.BABYSITTER_REPO_ALIAS || 'default');
+      const repoScopedWorkdir =
+        featureFlags.multiRepo
+          ? (resolveRepoPath(workspace, requestedRepoAlias) || projectDir)
+          : projectDir;
+
+      if (featureFlags.costBudgets) {
+        const preBudget = checkBudget(runDir, process.env.BABYSITTER_BUDGET_USD || null);
+        const softRatio = Number(process.env.BABYSITTER_BUDGET_SOFT_RATIO || 0.8);
+        if (preBudget.ratio !== null && preBudget.ratio >= softRatio) {
+          const maxChars = Number(process.env.BABYSITTER_PROMPT_SHRINK_MAX_CHARS || 3000);
+          const originalLength = agentPrompt.length;
+          agentPrompt = shrinkPrompt(agentPrompt, { maxChars });
+          appendTrace(runDir, {
+            type: 'prompt.shrunk',
+            runId,
+            iteration,
+            effectId,
+            fromChars: originalLength,
+            toChars: agentPrompt.length,
+            ratio: preBudget.ratio,
+          });
+          if (featureFlags.eventStreamV1) {
+            emitEvent('prompt.shrunk', {
+              runId,
+              iteration,
+              effectId,
+              fromChars: originalLength,
+              toChars: agentPrompt.length,
+              ratio: preBudget.ratio,
+            }, { repoRoot });
+          }
+        }
+      }
+
       console.log(`[orchestrate] Agent prompt (truncated): ${agentPrompt.slice(0, 120)}`);
 
       // Fire on-task-start hook before executing the effect
       fireHook('on-task-start', { effectId: task.effectId, kind });
 
       // 4dâ€“4e. Spawn codex exec and parse output (uses buildCodexArgs via runCodexExec)
-      const codexResult = runCodexExec(agentPrompt, projectDir, task);
+      const codexResult = runCodexExec(agentPrompt, repoScopedWorkdir, task);
       appendTrace(runDir, {
         type: 'task.executed',
         runId,
@@ -572,6 +609,8 @@ async function main() {
         kind,
         exitCode: codexResult.exitCode,
         success: codexResult.success,
+        repoAlias: requestedRepoAlias,
+        workdir: repoScopedWorkdir,
       });
       if (featureFlags.costBudgets) {
         const estimatedTokens = estimateTokens(codexResult.stdout) + estimateTokens(codexResult.stderr);

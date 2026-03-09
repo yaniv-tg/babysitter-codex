@@ -1,6 +1,11 @@
 'use strict';
 const { resolveCommand, getSkillContent, listCommands, suggestCommand } = require('./skill-loader');
-const { handleModelCommand, handleIssueCommand, handleResumeSelector } = require('./mode-handlers');
+const {
+  handleModelCommand,
+  handleIssueCommand,
+  handleResumeSelector,
+  handleDoctorCommand,
+} = require('./mode-handlers');
 
 /**
  * Parse user input and dispatch to the appropriate babysitter skill.
@@ -42,6 +47,8 @@ function dispatch(input) {
     data = handleIssueCommand(parsed.args);
   } else if (parsed.command === 'babysitter:resume') {
     data = handleResumeSelector(parsed.args);
+  } else if (parsed.command === 'babysitter:doctor') {
+    data = handleDoctorCommand(parsed.args);
   }
 
   return {

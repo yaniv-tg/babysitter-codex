@@ -166,6 +166,15 @@ test('dispatch resume command returns selector data', () => {
   assert.strictEqual(result.data.selector, 'recent');
 });
 
+test('dispatch doctor mcp command returns mcp report payload', () => {
+  const result = cd.dispatch('/babysitter:doctor mcp');
+  assert.ok(result.dispatched);
+  assert.strictEqual(result.command, 'babysitter:doctor');
+  assert.ok(result.data);
+  assert.strictEqual(result.data.scope, 'mcp');
+  assert.ok(result.data.report);
+});
+
 test('dispatch returns dispatched:false for non-commands', () => {
   const result = cd.dispatch('hello world');
   assert.strictEqual(result.dispatched, false);

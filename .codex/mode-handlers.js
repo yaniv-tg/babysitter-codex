@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { fetchIssue } = require('./github-workflow');
 const { findSession } = require('./state-index');
+const { runMcpDoctor } = require('./mcp-doctor');
 
 function policyPath(repoRoot) {
   return path.join(repoRoot || process.cwd(), '.a5c', 'config', 'model-policy.json');
@@ -182,8 +183,26 @@ function handleResumeSelector(args, options = {}) {
   };
 }
 
+function handleDoctorCommand(args, options = {}) {
+  const arg = String(args || '').trim().toLowerCase();
+  if (arg === 'mcp' || arg === '--mcp' || arg.includes('mcp')) {
+    const report = runMcpDoctor(options.repoRoot || process.cwd());
+    return {
+      ok: report.ok,
+      scope: 'mcp',
+      report,
+    };
+  }
+  return {
+    ok: true,
+    scope: 'general',
+    notes: ['General doctor path is delegated to existing babysitter:doctor skill instructions.'],
+  };
+}
+
 module.exports = {
   handleModelCommand,
   handleIssueCommand,
   handleResumeSelector,
+  handleDoctorCommand,
 };
