@@ -24,7 +24,7 @@ Look for runs with `status: "waiting"` or `status: "executed"` (not completed/fa
 
 ```bash
 babysitter session:resume \
-  --session-id "$CODEX_SESSION_ID" \
+  --session-id "${CODEX_THREAD_ID:-$CODEX_SESSION_ID}" \
   --state-dir "$CODEX_PLUGIN_ROOT/skills/babysitter/state" \
   --run-id <runId> \
   --runs-dir .a5c/runs \

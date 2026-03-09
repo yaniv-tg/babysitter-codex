@@ -53,6 +53,7 @@ function logTurnCompletion(runId, turnIndex, status) {
     status: status || null,
     env: {
       CODEX_TURN_INDEX: process.env.CODEX_TURN_INDEX || null,
+      CODEX_THREAD_ID: process.env.CODEX_THREAD_ID || null,
       CODEX_SESSION_ID: process.env.CODEX_SESSION_ID || null,
       BABYSITTER_RUN_ID: process.env.BABYSITTER_RUN_ID || null,
     },

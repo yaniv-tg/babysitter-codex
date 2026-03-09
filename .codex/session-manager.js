@@ -18,6 +18,7 @@ function resolveSessionContext(options = {}) {
   const sessionId =
     options.sessionId ||
     process.env.BABYSITTER_SESSION_ID ||
+    process.env.CODEX_THREAD_ID ||
     process.env.CODEX_SESSION_ID ||
     (persisted && (persisted.sessionId || persisted.id || persisted.session_id)) ||
     null;

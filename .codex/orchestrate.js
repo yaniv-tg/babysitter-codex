@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * orchestrate.js — Main Node.js wrapper script for babysitter orchestration with Codex CLI.
+ * orchestrate.js â€” Main Node.js wrapper script for babysitter orchestration with Codex CLI.
  *
  * Usage:
  *   node .codex/orchestrate.js \
@@ -88,7 +88,7 @@ function babysitter(subArgs, opts = {}) {
 // ---------------------------------------------------------------------------
 
 function runCodexExec(agentPrompt, workdir, taskDef) {
-  console.log(`[orchestrate] Running codex exec --full-auto …`);
+  console.log(`[orchestrate] Running codex exec --full-auto â€¦`);
 
   const codexArgs = buildCodexArgs(taskDef || {}, { fullAuto: true, workdir });
   const execArgs = ['exec', ...codexArgs, agentPrompt];
@@ -154,6 +154,26 @@ async function waitForStdinInput(question) {
       resolve(answer);
     });
   });
+}
+
+function resolveCodexSessionId() {
+  return (
+    process.env.BABYSITTER_SESSION_ID ||
+    process.env.CODEX_THREAD_ID ||
+    process.env.CODEX_SESSION_ID ||
+    `codex-${Date.now()}`
+  );
+}
+
+function sanitizeKey(input, fallback) {
+  if (!input || typeof input !== 'string') return fallback;
+  const cleaned = input
+    .replace(/\?/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+(.)/g, (_, c) => c.toUpperCase())
+    .replace(/[^a-zA-Z0-9]/g, '');
+  return cleaned || fallback;
 }
 
 // ---------------------------------------------------------------------------
@@ -223,7 +243,7 @@ async function main() {
   fs.mkdirSync(runsDir, { recursive: true });
 
   // -------------------------------------------------------------------------
-  // 2. session:init — obtain session ID
+  // 2. session:init â€” obtain session ID
   // -------------------------------------------------------------------------
 
   console.log('\n[orchestrate] === session:init ===');
@@ -231,7 +251,7 @@ async function main() {
   if (supports('session:init')) {
     try {
       sessionData = initSession({
-        sessionId: process.env.CODEX_SESSION_ID || `codex-${Date.now()}`,
+        sessionId: resolveCodexSessionId(),
         stateDir,
       }) || {};
     } catch (e) {
@@ -245,7 +265,7 @@ async function main() {
   console.log(`[orchestrate] Session ID: ${sessionId}`);
 
   // -------------------------------------------------------------------------
-  // 3. run:create — start a run
+  // 3. run:create â€” start a run
   // -------------------------------------------------------------------------
 
   console.log('\n[orchestrate] === run:create ===');
@@ -368,7 +388,7 @@ async function main() {
     // 4h. Check for completionProof
     if (iterateResult.completionProof) {
       completionProof = iterateResult.completionProof;
-      console.log('[orchestrate] CompletionProof received — run is complete.');
+      console.log('[orchestrate] CompletionProof received â€” run is complete.');
       appendTrace(runDir, { type: 'run.complete', runId, iteration, via: 'completionProof' });
       finalStatus = 'complete';
       break;
@@ -398,7 +418,7 @@ async function main() {
 
     console.log(`[orchestrate] Processing ${nextActions.length} pending action(s).`);
 
-    // 4c–4g. Process each action
+    // 4câ€“4g. Process each action
     for (const task of nextActions) {
       const effectId = task.effectId || task.id || task.taskId || null;
       const kind     = task.kind || 'agent';
@@ -414,14 +434,41 @@ async function main() {
       });
 
       // -----------------------------------------------------------------------
-      // 5. Breakpoint tasks — prompt user via stdin
+      // 5. Breakpoint tasks â€” prompt user via stdin
       // -----------------------------------------------------------------------
       if (kind === 'breakpoint') {
-        const question = (task.breakpoint && task.breakpoint.question)
-          || task.question
-          || '[orchestrate] Breakpoint reached. Press Enter to continue…';
+        const bp =
+          task.breakpoint ||
+          (task.effect && task.effect.breakpoint) ||
+          (task.metadata && task.metadata.payload) ||
+          {};
+        const questions = Array.isArray(bp.questions) ? bp.questions : [];
+        const question =
+          bp.question ||
+          task.question ||
+          '[orchestrate] Breakpoint reached. Press Enter to continue...';
+
+        fireHook('on-breakpoint', {
+          runId,
+          effectId,
+          taskId: task.taskId || null,
+          payload: bp,
+        });
+
         console.log(`\n[orchestrate] BREAKPOINT: ${question}`);
-        const answer = await waitForStdinInput(`${question}\n> `);
+        const answers = {};
+        if (questions.length > 0) {
+          for (let i = 0; i < questions.length; i++) {
+            const q = String(questions[i] || '').trim();
+            const key = sanitizeKey(q, `answer${i + 1}`);
+            answers[key] = await waitForStdinInput(`${i + 1}. ${q}\n> `);
+          }
+        }
+        const freeform = await waitForStdinInput('Additional response (optional, press Enter to skip):\n> ');
+        const approvePrompt = /approve|approval/i.test(question)
+          ? await waitForStdinInput('Approve this breakpoint? [Y/n]\n> ')
+          : '';
+        const approved = !/^n(o)?$/i.test((approvePrompt || '').trim());
 
         if (!effectId) continue;
 
@@ -429,7 +476,14 @@ async function main() {
         fs.mkdirSync(taskOutputDir, { recursive: true });
         const outputPath = path.join(taskOutputDir, 'output.json');
         const outputRef = `tasks/${effectId}/output.json`;
-        const outputPayload = { success: true, answer, completedAt: new Date().toISOString() };
+        const outputPayload = {
+          success: true,
+          approved,
+          answer: freeform || null,
+          response: freeform || null,
+          answers,
+          completedAt: new Date().toISOString(),
+        };
         fs.writeFileSync(outputPath, JSON.stringify(outputPayload, null, 2));
 
         try {
@@ -446,7 +500,7 @@ async function main() {
       // Agent tasks
       // -----------------------------------------------------------------------
       if (kind !== 'agent') {
-        console.warn(`[orchestrate] Unknown task kind "${kind}" — skipping.`);
+        console.warn(`[orchestrate] Unknown task kind "${kind}" â€” skipping.`);
         appendTrace(runDir, { type: 'task.skipped', runId, iteration, effectId, kind, reason: 'unsupported_kind' });
         continue;
       }
@@ -462,7 +516,7 @@ async function main() {
       // Fire on-task-start hook before executing the effect
       fireHook('on-task-start', { effectId: task.effectId, kind });
 
-      // 4d–4e. Spawn codex exec and parse output (uses buildCodexArgs via runCodexExec)
+      // 4dâ€“4e. Spawn codex exec and parse output (uses buildCodexArgs via runCodexExec)
       const codexResult = runCodexExec(agentPrompt, projectDir, task);
       appendTrace(runDir, {
         type: 'task.executed',
@@ -560,3 +614,4 @@ if (require.main === module) {
 }
 
 module.exports = { parseArgs, main };
+
