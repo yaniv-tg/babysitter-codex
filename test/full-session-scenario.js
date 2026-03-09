@@ -135,6 +135,8 @@ function verifySkillLibrary() {
     'forever',
     'doctor',
     'observe',
+    'model',
+    'issue',
     'help',
     'project-install',
     'user-install',

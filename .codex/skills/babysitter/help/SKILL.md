@@ -24,6 +24,8 @@ Primary Commands:
 
 Secondary Commands:
   /babysitter:doctor      Diagnose run health (10 checks)
+  /babysitter:model       Set/view model routing policy
+  /babysitter:issue       Start workflow from GitHub issue
   /babysitter:assimilate  Assimilate external methodology
   /babysitter:user-install   Set up babysitter for yourself
   /babysitter:project-install  Onboard a project

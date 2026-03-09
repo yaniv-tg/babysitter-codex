@@ -3,6 +3,7 @@
 const path = require('path');
 const { readSessionContext } = require('./hooks/utils');
 const { runJson, supports } = require('./sdk-cli');
+const { findSession } = require('./state-index');
 
 function unsupported(command) {
   return {
@@ -248,6 +249,22 @@ function getLastMessage(transcriptPath) {
   ]);
 }
 
+/**
+ * 9. resolveResumeSelector(selector, options)
+ *
+ * Resolves a resume selector in the form:
+ * - recent
+ * - tag:<name>
+ * - <alias>
+ * - <sessionId>
+ *
+ * Returns the selected session metadata (or null).
+ */
+function resolveResumeSelector(selector, options = {}) {
+  const repoRoot = options.repoRoot || process.cwd();
+  return findSession(repoRoot, selector || 'recent');
+}
+
 module.exports = {
   initSession,
   associateSession,
@@ -257,4 +274,5 @@ module.exports = {
   checkIteration,
   getIterationMessage,
   getLastMessage,
+  resolveResumeSelector,
 };

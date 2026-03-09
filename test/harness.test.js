@@ -123,11 +123,12 @@ function testTraceLogger() {
 function testSessionManager() {
   const sm = require('../.codex/session-manager');
   const expected = ['initSession', 'associateSession', 'resumeSession', 'getSessionState',
-                    'updateSession', 'checkIteration', 'getIterationMessage', 'getLastMessage'];
+                    'updateSession', 'checkIteration', 'getIterationMessage', 'getLastMessage',
+                    'resolveResumeSelector'];
   for (const fn of expected) {
     assert.ok(typeof sm[fn] === 'function', `session-manager should export ${fn}`);
   }
-  console.log('  ✓ session-manager: exports all 8 functions');
+  console.log('  ✓ session-manager: exports all expected functions');
 }
 
 // Run all tests

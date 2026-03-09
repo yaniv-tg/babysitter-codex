@@ -33,7 +33,7 @@ test('loadPlugin returns valid manifest', () => {
   assert.ok(plugin.name === 'babysitter');
   assert.ok(plugin.version === '4.0.143');
   assert.ok(Array.isArray(plugin.commands));
-  assert.strictEqual(plugin.commands.length, 11);
+  assert.strictEqual(plugin.commands.length, 13);
 });
 
 test('resolveCommandName resolves canonical names', () => {
@@ -91,9 +91,9 @@ test('getSkillContent returns markdown content', () => {
   assert.ok(content.includes('#') || content.length > 10);
 });
 
-test('listCommands returns all 11 commands', () => {
+test('listCommands returns all 13 commands', () => {
   const commands = sl.listCommands();
-  assert.strictEqual(commands.length, 11);
+  assert.strictEqual(commands.length, 13);
   const names = commands.map(c => c.name);
   assert.ok(names.includes('babysitter:call'));
   assert.ok(names.includes('babysitter:yolo'));
@@ -102,6 +102,8 @@ test('listCommands returns all 11 commands', () => {
   assert.ok(names.includes('babysitter:forever'));
   assert.ok(names.includes('babysitter:doctor'));
   assert.ok(names.includes('babysitter:observe'));
+  assert.ok(names.includes('babysitter:model'));
+  assert.ok(names.includes('babysitter:issue'));
   assert.ok(names.includes('babysitter:help'));
   assert.ok(names.includes('babysitter:project-install'));
   assert.ok(names.includes('babysitter:user-install'));
@@ -626,6 +628,7 @@ console.log('\nSkill Files:');
 
 const expectedSkills = [
   'call', 'yolo', 'resume', 'plan', 'forever',
+  'model', 'issue',
   'doctor', 'observe', 'help', 'project-install',
   'user-install', 'assimilate'
 ];

@@ -30,6 +30,8 @@ directory) and follow its instructions.
 | Start a never-ending periodic run | forever | `forever/SKILL.md` |
 | Diagnose run health | doctor | `doctor/SKILL.md` |
 | Launch observer dashboard | observe | `observe/SKILL.md` |
+| Set or view model routing policy | model | `model/SKILL.md` |
+| Work directly from a GitHub issue | issue | `issue/SKILL.md` |
 | Help and documentation | help | `help/SKILL.md` |
 | Onboard a project | project-install | `project-install/SKILL.md` |
 | Set up user profile | user-install | `user-install/SKILL.md` |

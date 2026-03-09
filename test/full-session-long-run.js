@@ -141,6 +141,8 @@ function verifySkillLibrary() {
     'forever',
     'doctor',
     'observe',
+    'model',
+    'issue',
     'help',
     'project-install',
     'user-install',
@@ -483,7 +485,7 @@ function main() {
     details.push(`0/20 long-session target failed (${simMinutes} minutes)`);
   }
 
-  if (skillCount === 11 && fs.existsSync(path.join(PROCESS_DIR, 'full-session-long-run-process.js'))) {
+  if (skillCount === 13 && fs.existsSync(path.join(PROCESS_DIR, 'full-session-long-run-process.js'))) {
     score += 20;
     details.push('20/20 process+skill library checks passed');
   } else {

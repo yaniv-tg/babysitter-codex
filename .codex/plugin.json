@@ -16,6 +16,8 @@
     { "name": "babysitter:forever", "file": "skills/babysitter/forever/SKILL.md", "description": "Start a never-ending periodic orchestration run", "argumentHint": "Specific instructions for the run" },
     { "name": "babysitter:doctor", "file": "skills/babysitter/doctor/SKILL.md", "description": "Diagnose babysitter run health", "argumentHint": "[run-id] Optional run ID to diagnose" },
     { "name": "babysitter:observe", "file": "skills/babysitter/observe/SKILL.md", "description": "Launch the observer dashboard", "argumentHint": "[--watch-dir <dir>] or 'stop'" },
+    { "name": "babysitter:model", "file": "skills/babysitter/model/SKILL.md", "description": "Set or view model routing policy", "argumentHint": "[show|set <phase>=<model> ...]" },
+    { "name": "babysitter:issue", "file": "skills/babysitter/issue/SKILL.md", "description": "Work directly from a GitHub issue", "argumentHint": "<issue-number|url> [--repo owner/name]" },
     { "name": "babysitter:help", "file": "skills/babysitter/help/SKILL.md", "description": "Help and documentation", "argumentHint": "[command|process|skill|agent] topic to get help on" },
     { "name": "babysitter:project-install", "file": "skills/babysitter/project-install/SKILL.md", "description": "Set up a project for babysitting", "argumentHint": "Specific instructions" },
     { "name": "babysitter:user-install", "file": "skills/babysitter/user-install/SKILL.md", "description": "Set up babysitter for a user", "argumentHint": "Specific instructions" },

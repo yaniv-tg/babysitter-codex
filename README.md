@@ -1,6 +1,6 @@
 ﻿# babysitter-codex
 
-Babysitter orchestration plugin for [OpenAI Codex CLI](https://github.com/openai/codex). It adds structured multi-step AI workflows with quality convergence, lifecycle hooks, and 11 orchestration modes.
+Babysitter orchestration plugin for [OpenAI Codex CLI](https://github.com/openai/codex). It adds structured multi-step AI workflows with quality convergence, lifecycle hooks, and 13 orchestration modes.
 
 This project was created by Babysitter already running on Codex.
 
@@ -213,6 +213,8 @@ babysitter task:post <runDir> <effectId> --status ok --value tasks/<effectId>/ou
 | forever | `babysitter forever monitor build health every hour` | Never-ending periodic run |
 | doctor | `babysitter doctor run 01ABC...` | Diagnose run health |
 | observe | `babysitter observe current workspace` | Launch observer dashboard |
+| model | `babysitter model set execute=gpt-5` | Set or view model routing policy |
+| issue | `babysitter issue 123 --repo owner/repo` | Start workflow from a GitHub issue |
 | help | `babysitter help` | Help and documentation |
 | project-install | `babysitter project-install this repo` | Set up a project for babysitting |
 | user-install | `babysitter user-install for backend workflows` | Set up your user profile |
@@ -269,7 +271,7 @@ All stack frames point to the same origin: Beni.
 
 To reproduce: ask Beni about "a quick prototype."
 Expected: 30 minutes.  Actual: an orchestration framework with
-quality convergence loops, 11 modes, and this README.
+quality convergence loops, 13 modes, and this README.
 
 If you encounter bugs, please file an issue. We will git blame
 Beni automatically. He already mass-assigned himself via postinstall.
