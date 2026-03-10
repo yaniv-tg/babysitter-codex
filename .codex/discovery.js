@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { runJson, supports } = require('./sdk-cli');
+const { getLibraryStats, resolveProcessLibraryRoot, resolveReferenceRoot } = require('./process-library');
 
 /**
  * Run a babysitter CLI sub-command and return parsed JSON output.
@@ -29,10 +30,14 @@ function runBabysitter(subArgs) {
  */
 function discoverSkills(options = {}) {
   if (!supports('skill:discover')) {
+    const stats = getLibraryStats(options.repoRoot || process.cwd());
     return {
       mode: 'compat-core',
       skills: [],
       agents: [],
+      processLibrary: stats,
+      processLibraryRoot: stats.processRoot,
+      referenceRoot: stats.referenceRoot,
       message: 'skill:discover unsupported by this SDK build; using local/manual skill loading only.',
     };
   }
@@ -63,7 +68,10 @@ function discoverSkills(options = {}) {
     args.push('--process-path', options.processPath);
   }
 
-  return runBabysitter(args);
+  const result = runBabysitter(args) || {};
+  result.processLibraryRoot = resolveProcessLibraryRoot(options.repoRoot || process.cwd());
+  result.referenceRoot = resolveReferenceRoot(options.repoRoot || process.cwd());
+  return result;
 }
 
 /**

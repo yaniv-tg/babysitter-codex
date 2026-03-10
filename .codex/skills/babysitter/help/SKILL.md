@@ -24,6 +24,7 @@ Primary Commands:
 
 Secondary Commands:
   /babysitter:doctor      Diagnose run health (10 checks)
+  /babysitter:retrospect  Analyze a run and improve future processes
   /babysitter:model       Set/view model routing policy
   /babysitter:issue       Start workflow from GitHub issue
   /babysitter:assimilate  Assimilate external methodology
@@ -40,6 +41,7 @@ If an argument is provided:
 
 1. **Command help**: Read the SKILL.md for that command from `.codex/skills/babysitter/<name>/SKILL.md` and display its content
 2. **Process help**: Read the process .js file from `.a5c/processes/<name>.js` and describe it
+   - Also search bundled upstream process library at `upstream/babysitter/skills/babysit/process`
 3. **Skill/agent help**: Use `babysitter skill:discover --json` to find it and display its description
 4. **Methodology help**: Search the process library for matching methodology
 

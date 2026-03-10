@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- Bundled full upstream Babysitter skill/process/reference library snapshot under `upstream/babysitter/`.
+- Added Codex command mapping manifest: `config/codex-command-map.json`.
+- Added new Codex command mode: `babysitter:retrospect`.
+- Added mapping/runtime helpers:
+  - `.codex/process-library.js`
+  - `.codex/codex-mapping.js`
+  - discovery now reports mapped `processLibraryRoot`/`referenceRoot`.
 - Foundation modules for prioritized roadmap delivery:
   - feature flags (`.codex/feature-flags.js`)
   - session index (`.codex/state-index.js`)
@@ -29,6 +36,8 @@ All notable changes to this project are documented in this file.
   - docs: `docs/FEATURES_1_10.md`
 
 ### Changed
+- Updated plugin manifest command set to 14 commands (including `retrospect`) and version `4.0.147`.
+- Updated docs/tests for 14-mode parity and upstream-library mapping.
 - `orchestrate.js` now emits structured events, supports policy/model/telemetry integration, and records session metadata for resume UX.
 - `on-turn-complete` now emits event-stream notifications.
 - Dispatcher now executes concrete mode handlers for `model`, `issue`, `resume` selectors, and `doctor mcp`.

@@ -2,7 +2,7 @@
 
 This scenario validates end-to-end Babysitter behavior in Codex, including:
 
-- All 13 Babysitter modes (`call`, `yolo`, `resume`, `plan`, `forever`, `doctor`, `observe`, `model`, `issue`, `help`, `project-install`, `user-install`, `assimilate`)
+- All 14 Babysitter modes (`call`, `yolo`, `resume`, `plan`, `forever`, `doctor`, `observe`, `retrospect`, `model`, `issue`, `help`, `project-install`, `user-install`, `assimilate`)
 - Process creation and execution
 - Breakpoint generation and breakpoint output acceptance by the run
 - Core SDK orchestration flow (`run:create`, `run:iterate`, `task:list`, `task:post`, `run:status`)

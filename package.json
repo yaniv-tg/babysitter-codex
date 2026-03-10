@@ -1,7 +1,7 @@
 {
   "name": "babysitter-codex",
   "version": "0.1.4",
-  "description": "Babysitter orchestration plugin for OpenAI Codex CLI - multi-step AI workflows with quality convergence, lifecycle hooks, and 13 slash commands",
+  "description": "Babysitter orchestration plugin for OpenAI Codex CLI - multi-step AI workflows with full upstream process library and 14 slash commands",
   "scripts": {
     "test": "node test/integration.test.js && node test/harness.test.js && node test/plugin.test.js && node test/features-1-10.test.js",
     "test:unit": "node test/harness.test.js",

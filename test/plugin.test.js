@@ -31,9 +31,9 @@ const sl = require('../.codex/skill-loader');
 test('loadPlugin returns valid manifest', () => {
   const plugin = sl.loadPlugin();
   assert.ok(plugin.name === 'babysitter');
-  assert.ok(plugin.version === '4.0.143');
+  assert.ok(plugin.version === '4.0.147');
   assert.ok(Array.isArray(plugin.commands));
-  assert.strictEqual(plugin.commands.length, 13);
+  assert.strictEqual(plugin.commands.length, 14);
 });
 
 test('resolveCommandName resolves canonical names', () => {
@@ -91,9 +91,9 @@ test('getSkillContent returns markdown content', () => {
   assert.ok(content.includes('#') || content.length > 10);
 });
 
-test('listCommands returns all 13 commands', () => {
+test('listCommands returns all 14 commands', () => {
   const commands = sl.listCommands();
-  assert.strictEqual(commands.length, 13);
+  assert.strictEqual(commands.length, 14);
   const names = commands.map(c => c.name);
   assert.ok(names.includes('babysitter:call'));
   assert.ok(names.includes('babysitter:yolo'));
@@ -102,6 +102,7 @@ test('listCommands returns all 13 commands', () => {
   assert.ok(names.includes('babysitter:forever'));
   assert.ok(names.includes('babysitter:doctor'));
   assert.ok(names.includes('babysitter:observe'));
+  assert.ok(names.includes('babysitter:retrospect'));
   assert.ok(names.includes('babysitter:model'));
   assert.ok(names.includes('babysitter:issue'));
   assert.ok(names.includes('babysitter:help'));
@@ -625,6 +626,8 @@ test('getRunId reads from environment', () => {
 console.log('\nDiscovery:');
 
 const disc = require('../.codex/discovery');
+const { loadCodexMapping, getCommandMapping } = require('../.codex/codex-mapping');
+const { getLibraryStats } = require('../.codex/process-library');
 
 test('parseProcessMarkers extracts @skill markers', () => {
   const tmpFile = path.join(os.tmpdir(), 'test-process.js');
@@ -654,6 +657,21 @@ test('parseProcessMarkers handles null input', () => {
   assert.deepStrictEqual(result, { skills: [], agents: [] });
 });
 
+test('codex command mapping includes retrospect and call mappings', () => {
+  const mapping = loadCodexMapping(PROJECT_ROOT);
+  assert.ok(Array.isArray(mapping.commandMappings));
+  const callMap = getCommandMapping('babysitter:call', PROJECT_ROOT);
+  const retroMap = getCommandMapping('babysitter:retrospect', PROJECT_ROOT);
+  assert.ok(callMap && callMap.skillFile.includes('call/SKILL.md'));
+  assert.ok(retroMap && retroMap.upstreamCommandDoc && retroMap.upstreamCommandDoc.includes('retrospect.md'));
+});
+
+test('process library stats report bundled upstream roots', () => {
+  const stats = getLibraryStats(PROJECT_ROOT);
+  assert.ok(stats.exists, 'bundled process library should exist');
+  assert.ok(stats.processFiles > 100, 'expected substantial upstream process library size');
+});
+
 // ============================================================================
 // SKILL.md files existence tests
 // ============================================================================
@@ -662,7 +680,7 @@ console.log('\nSkill Files:');
 
 const expectedSkills = [
   'call', 'yolo', 'resume', 'plan', 'forever',
-  'model', 'issue',
+  'retrospect', 'model', 'issue',
   'doctor', 'observe', 'help', 'project-install',
   'user-install', 'assimilate'
 ];

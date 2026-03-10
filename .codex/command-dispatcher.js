@@ -1,5 +1,6 @@
 'use strict';
 const { resolveCommand, getSkillContent, listCommands, suggestCommand } = require('./skill-loader');
+const { getCommandMapping } = require('./codex-mapping');
 const {
   handleModelCommand,
   handleIssueCommand,
@@ -57,6 +58,7 @@ function dispatch(input) {
     command: parsed.command,
     args: parsed.args,
     instructions,
+    mapping: getCommandMapping(parsed.command, process.cwd()),
     data,
   };
 }

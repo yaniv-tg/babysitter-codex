@@ -1,6 +1,6 @@
 ﻿# babysitter-codex
 
-Babysitter orchestration plugin for [OpenAI Codex CLI](https://github.com/openai/codex). It adds structured multi-step AI workflows with quality convergence, lifecycle hooks, and 13 orchestration modes.
+Babysitter orchestration plugin for [OpenAI Codex CLI](https://github.com/openai/codex). It adds structured multi-step AI workflows with quality convergence, lifecycle hooks, 14 orchestration modes, and the full upstream Babysitter process library.
 
 This project was created by Babysitter already running on Codex.
 
@@ -22,6 +22,7 @@ This project was created by Babysitter already running on Codex.
 - See [docs/COMPATIBILITY_MATRIX.md](./docs/COMPATIBILITY_MATRIX.md) for version support policy.
 - See [docs/REAL_WORLD_VALIDATION.md](./docs/REAL_WORLD_VALIDATION.md) for release validation scenarios.
 - See [docs/FEATURES_1_10.md](./docs/FEATURES_1_10.md) for implementation notes of the prioritized feature set.
+- See [docs/CODEX_MAPPING.md](./docs/CODEX_MAPPING.md) for upstream-to-codex command/process mapping.
 
 ## Full Test Scenarios
 
@@ -35,6 +36,20 @@ The long-session scenario validates:
 - generated artifact reflects selected interview choices (colors/text)
 - simulated 60-minute AI workload
 - strict `100/100` score gate
+
+## Bundled Upstream Library
+
+`babysitter-codex` now bundles upstream Babysitter assets under:
+
+- `upstream/babysitter/skills/babysit/process` (full process library)
+- `upstream/babysitter/skills/babysit/reference` (reference docs)
+- `upstream/babysitter/commands` (upstream command docs)
+
+Default process-library root for Codex mapping:
+- `upstream/babysitter/skills/babysit/process`
+
+Override with:
+- `BABYSITTER_PROCESS_LIBRARY_ROOT=<path>`
 
 ## Important: No Native /babysitter Slash Commands
 
@@ -218,6 +233,7 @@ babysitter task:post <runDir> <effectId> --status ok --value tasks/<effectId>/ou
 | forever | `babysitter forever monitor build health every hour` | Never-ending periodic run |
 | doctor | `babysitter doctor run 01ABC...` | Diagnose run health |
 | observe | `babysitter observe current workspace` | Launch observer dashboard |
+| retrospect | `babysitter retrospect latest run` | Analyze a run and propose process improvements |
 | model | `babysitter model set execute=gpt-5` | Set or view model routing policy |
 | issue | `babysitter issue 123 --repo owner/repo` | Start workflow from a GitHub issue |
 | help | `babysitter help` | Help and documentation |
@@ -308,7 +324,7 @@ SRE summary:
 Repro:
 1. Ask Beni for a tiny helper script.
 2. Wait 20 minutes.
-3. Receive 13 modes, hooks, telemetry, and a roadmap.
+3. Receive 14 modes, hooks, telemetry, and a roadmap.
 
 If anything breaks, open an issue and always blame Beni.
 This policy is deterministic, backward-compatible, and thoroughly validated.

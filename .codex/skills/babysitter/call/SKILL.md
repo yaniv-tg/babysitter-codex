@@ -25,6 +25,16 @@ Gather user intent, requirements, goals, and scope. Research the repo structure,
 
 Create the process .js file with task definitions. Install `@a5c-ai/babysitter-sdk` in `.a5c/package.json` if not present.
 
+### Process/Skill Library Roots (Codex Mapping)
+
+When searching for reusable processes, skills, and agents:
+
+- Project-local processes: `.a5c/processes`
+- Bundled upstream library: `upstream/babysitter/skills/babysit/process`
+- Bundled upstream references: `upstream/babysitter/skills/babysit/reference`
+
+Override process root with `BABYSITTER_PROCESS_LIBRARY_ROOT` when needed.
+
 ### 3. Create Run
 
 ```bash
