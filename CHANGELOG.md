@@ -24,6 +24,9 @@ All notable changes to this project are documented in this file.
 - `on-turn-complete` now emits event-stream notifications.
 - Dispatcher now executes concrete mode handlers for `model`, `issue`, `resume` selectors, and `doctor mcp`.
 - Orchestrator now supports multi-repo alias workdirs and adaptive prompt shrinking under budget pressure.
+- Added upstream sync/parity tooling and documentation (`sync:upstream`, `check:upstream`).
+- Added explicit compatibility policy checks (`check:compat`) and CI enforcement.
+- Added maintainer runbook and real-world validation docs.
 
 ## [0.1.4] - 2026-03-07
 

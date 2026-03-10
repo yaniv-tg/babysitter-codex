@@ -131,6 +131,7 @@ const cd = require('../.codex/command-dispatcher');
 test('dispatch recognizes valid slash commands', () => {
   const result = cd.dispatch('/babysitter:help');
   assert.ok(result.dispatched);
+  assert.strictEqual(result.contractVersion, 'v1');
   assert.strictEqual(result.command, 'babysitter:help');
   assert.ok(result.instructions);
 });

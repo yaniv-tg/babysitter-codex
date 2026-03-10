@@ -53,6 +53,7 @@ function dispatch(input) {
 
   return {
     dispatched: true,
+    contractVersion: 'v1',
     command: parsed.command,
     args: parsed.args,
     instructions,

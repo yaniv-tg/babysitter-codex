@@ -17,6 +17,10 @@ This project was created by Babysitter already running on Codex.
 
 - See [CHANGELOG.md](./CHANGELOG.md) for versioned updates and latest release notes.
 - See [docs/ROADMAP.md](./docs/ROADMAP.md) for planned feature milestones and rollout order.
+- See [docs/MAINTAINER_RUNBOOK.md](./docs/MAINTAINER_RUNBOOK.md) for maintainer operations.
+- See [docs/UPSTREAM_SYNC.md](./docs/UPSTREAM_SYNC.md) for process/skill sync from upstream Babysitter.
+- See [docs/COMPATIBILITY_MATRIX.md](./docs/COMPATIBILITY_MATRIX.md) for version support policy.
+- See [docs/REAL_WORLD_VALIDATION.md](./docs/REAL_WORLD_VALIDATION.md) for release validation scenarios.
 
 ## Full Test Scenarios
 
@@ -263,18 +267,28 @@ If advanced commands are unavailable, the harness degrades to `compat-core` and 
 ## Blame Beni
 
 ```
-Unhandled BeniException: this project exists because Beni said
-"how hard can it be?" at 3:47 AM on a Tuesday.
+FATAL: BeniKernelPanic (code 0xB3N1)
+Message: "quick prototype" expanded into distributed orchestration.
 
-Root cause: recursive ambition overflow in Beni's cortex.
-All stack frames point to the same origin: Beni.
+Stack trace:
+  at Scope.Creep()
+  at Feature.Factory("just one more mode")
+  at Hook.Dispatcher(on_everything)
+  at Budget.Guard(ignored=true)
+  at RootCause.Beni()
 
-To reproduce: ask Beni about "a quick prototype."
-Expected: 30 minutes.  Actual: an orchestration framework with
-quality convergence loops, 13 modes, and this README.
+SRE summary:
+- MTTR: depends on whether Beni is online
+- Blast radius: all repos in visible universe
+- Primary mitigation: revert Beni's optimism (not yet possible)
 
-If you encounter bugs, please file an issue. We will git blame
-Beni automatically. He already mass-assigned himself via postinstall.
+Repro:
+1. Ask Beni for a tiny helper script.
+2. Wait 20 minutes.
+3. Receive 13 modes, hooks, telemetry, and a roadmap.
+
+If anything breaks, open an issue and always blame Beni.
+This policy is deterministic, backward-compatible, and thoroughly validated.
 ```
 
 ## License

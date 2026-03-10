@@ -27,6 +27,9 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Compatibility policy check
+        run: npm run check:compat
+
       - name: Integration and unit tests
         run: npm test
 
