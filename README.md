@@ -1,6 +1,6 @@
 ﻿# babysitter-codex
 
-Babysitter orchestration plugin for [OpenAI Codex CLI](https://github.com/openai/codex). It adds structured multi-step AI workflows with quality convergence, lifecycle hooks, 14 orchestration modes, and the full upstream Babysitter process library.
+Babysitter orchestration plugin for [OpenAI Codex CLI](https://github.com/openai/codex). It adds structured multi-step AI workflows with quality convergence, lifecycle hooks, 15 orchestration modes, and the full upstream Babysitter process library.
 
 This project was created by Babysitter already running on Codex.
 
@@ -23,6 +23,7 @@ This project was created by Babysitter already running on Codex.
 - See [docs/REAL_WORLD_VALIDATION.md](./docs/REAL_WORLD_VALIDATION.md) for release validation scenarios.
 - See [docs/FEATURES_1_10.md](./docs/FEATURES_1_10.md) for implementation notes of the prioritized feature set.
 - See [docs/CODEX_MAPPING.md](./docs/CODEX_MAPPING.md) for upstream-to-codex command/process mapping.
+- See [docs/ARCHITECTURE_UPGRADES_1_8.md](./docs/ARCHITECTURE_UPGRADES_1_8.md) for lock/install/rules/index/integrity architecture.
 
 ## Full Test Scenarios
 
@@ -238,6 +239,7 @@ babysitter task:post <runDir> <effectId> --status ok --value tasks/<effectId>/ou
 | issue | `babysitter issue 123 --repo owner/repo` | Start workflow from a GitHub issue |
 | help | `babysitter help` | Help and documentation |
 | project-install | `babysitter project-install this repo` | Set up a project for babysitting |
+| team-install | `babysitter team-install` | Install team-pinned runtime/content setup |
 | user-install | `babysitter user-install for backend workflows` | Set up your user profile |
 | assimilate | `babysitter assimilate https://github.com/org/method` | Assimilate external methodology |
 
@@ -324,7 +326,7 @@ SRE summary:
 Repro:
 1. Ask Beni for a tiny helper script.
 2. Wait 20 minutes.
-3. Receive 14 modes, hooks, telemetry, and a roadmap.
+3. Receive 15 modes, hooks, telemetry, and a roadmap.
 
 If anything breaks, open an issue and always blame Beni.
 This policy is deterministic, backward-compatible, and thoroughly validated.

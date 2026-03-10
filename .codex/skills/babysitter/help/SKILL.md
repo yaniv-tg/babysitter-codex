@@ -27,6 +27,7 @@ Secondary Commands:
   /babysitter:retrospect  Analyze a run and improve future processes
   /babysitter:model       Set/view model routing policy
   /babysitter:issue       Start workflow from GitHub issue
+  /babysitter:team-install Install team-pinned setup from lockfile
   /babysitter:assimilate  Assimilate external methodology
   /babysitter:user-install   Set up babysitter for yourself
   /babysitter:project-install  Onboard a project

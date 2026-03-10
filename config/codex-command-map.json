@@ -73,6 +73,11 @@
       "codexCommand": "babysitter:issue",
       "upstreamCommandDoc": null,
       "skillFile": ".codex/skills/babysitter/issue/SKILL.md"
+    },
+    {
+      "codexCommand": "babysitter:team-install",
+      "upstreamCommandDoc": null,
+      "skillFile": ".codex/skills/babysitter/team-install/SKILL.md"
     }
   ]
 }

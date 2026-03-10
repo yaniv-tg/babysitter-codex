@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- Runtime/content package split scaffolding:
+  - `packages/runtime`
+  - `packages/content`
+- Lock and install architecture:
+  - `babysitter.lock.json`
+  - `scripts/team-install.js`
+  - new command: `babysitter:team-install`
+- Layered rules architecture:
+  - `.codex/rules-resolver.js`
+  - `config/rules/upstream-base.json`
+  - `config/rules/team/default.json`
+- Lazy process library indexing:
+  - `.codex/process-index.js`
+  - discovery integration for indexed lookup metadata
+- Secure content channel primitives:
+  - `scripts/generate-content-manifest.js`
+  - `scripts/verify-content-manifest.js`
+  - optional HMAC signature validation
+- Mapping contract gate:
+  - `scripts/check-mapping-contract.js`
+  - CI enforcement (`check:mapping`, `manifest:verify`, `team:install` smoke)
 - Bundled full upstream Babysitter skill/process/reference library snapshot under `upstream/babysitter/`.
 - Added Codex command mapping manifest: `config/codex-command-map.json`.
 - Added new Codex command mode: `babysitter:retrospect`.
@@ -36,8 +57,10 @@ All notable changes to this project are documented in this file.
   - docs: `docs/FEATURES_1_10.md`
 
 ### Changed
-- Updated plugin manifest command set to 14 commands (including `retrospect`) and version `4.0.147`.
-- Updated docs/tests for 14-mode parity and upstream-library mapping.
+- Fixed plugin command metadata regression: per-command descriptions restored in `.codex/plugin.json`.
+- Command surface increased to 15 modes with `team-install`.
+- Updated plugin manifest command set to 15 commands (including `retrospect` and `team-install`) and version `4.0.148`.
+- Updated docs/tests for 15-mode parity and upstream-library mapping.
 - `orchestrate.js` now emits structured events, supports policy/model/telemetry integration, and records session metadata for resume UX.
 - `on-turn-complete` now emits event-stream notifications.
 - Dispatcher now executes concrete mode handlers for `model`, `issue`, `resume` selectors, and `doctor mcp`.

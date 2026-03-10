@@ -49,6 +49,8 @@ function testRequire() {
     '.codex/trace-logger.js',
     '.codex/codex-mapping.js',
     '.codex/process-library.js',
+    '.codex/process-index.js',
+    '.codex/rules-resolver.js',
     '.codex/mode-handlers.js',
     '.codex/prompt-shrinker.js',
     '.codex/hooks/utils.js',

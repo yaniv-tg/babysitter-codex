@@ -30,6 +30,15 @@ jobs:
       - name: Compatibility policy check
         run: npm run check:compat
 
+      - name: Mapping contract check
+        run: npm run check:mapping
+
+      - name: Content manifest verification
+        run: npm run manifest:verify
+
+      - name: Team install smoke test
+        run: npm run team:install
+
       - name: Integration and unit tests
         run: npm test
 

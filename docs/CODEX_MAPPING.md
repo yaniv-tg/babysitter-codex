@@ -23,6 +23,7 @@ Upstream command docs are mapped to Codex skill files:
 - `retrospect` -> `babysitter:retrospect`
 - `help` -> `babysitter:help`
 - `project-install` -> `babysitter:project-install`
+- `team-install` -> `babysitter:team-install`
 - `user-install` -> `babysitter:user-install`
 - `assimilate` -> `babysitter:assimilate`
 
@@ -48,3 +49,10 @@ Use these Codex env vars when adapting upstream instructions:
 - `processLibrary` stats in compat-core mode
 
 This ensures Codex runs can still locate the bundled upstream process library when advanced SDK discovery commands are unavailable.
+
+## Lock + Integrity
+
+- Team-pinned lock file: `babysitter.lock.json`
+- Content integrity manifest: `config/content-manifest.json`
+- Verify with: `npm run manifest:verify`
+- Team bootstrap: `npm run team:install`

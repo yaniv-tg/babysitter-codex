@@ -2,14 +2,16 @@
 
 const fs = require('fs');
 const path = require('path');
+const { resolveRules } = require('./rules-resolver');
 
 function loadPolicyConfig(repoRoot) {
   const root = repoRoot || process.cwd();
   const p = path.join(root, '.a5c', 'config', 'policies.json');
+  const layered = resolveRules(root).rules;
   if (!fs.existsSync(p)) {
     return {
       planModeImmutable: true,
-      approvalPolicy: process.env.BABYSITTER_APPROVAL_POLICY || 'interactive',
+      approvalPolicy: process.env.BABYSITTER_APPROVAL_POLICY || layered.approval?.default || 'interactive',
       longTaskMode: process.env.BABYSITTER_LONG_TASK_MODE || 'off',
       allowShellCommands: [],
       allowNodeScripts: [],
@@ -21,12 +23,21 @@ function loadPolicyConfig(repoRoot) {
         maxDelayMs: 30000,
         jitterPct: 0.2,
       },
+      layeredRules: layered,
     };
   }
   try {
-    return JSON.parse(fs.readFileSync(p, 'utf8')) || {};
+    const fileCfg = JSON.parse(fs.readFileSync(p, 'utf8')) || {};
+    return {
+      ...fileCfg,
+      approvalPolicy: fileCfg.approvalPolicy || layered.approval?.default || 'interactive',
+      planModeImmutable: fileCfg.planModeImmutable !== undefined
+        ? fileCfg.planModeImmutable
+        : layered.safety?.planModeImmutable !== false,
+      layeredRules: layered,
+    };
   } catch {
-    return {};
+    return { layeredRules: layered };
   }
 }
 

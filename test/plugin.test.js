@@ -31,9 +31,9 @@ const sl = require('../.codex/skill-loader');
 test('loadPlugin returns valid manifest', () => {
   const plugin = sl.loadPlugin();
   assert.ok(plugin.name === 'babysitter');
-  assert.ok(plugin.version === '4.0.147');
+  assert.ok(plugin.version === '4.0.148');
   assert.ok(Array.isArray(plugin.commands));
-  assert.strictEqual(plugin.commands.length, 14);
+  assert.strictEqual(plugin.commands.length, 15);
 });
 
 test('resolveCommandName resolves canonical names', () => {
@@ -91,9 +91,9 @@ test('getSkillContent returns markdown content', () => {
   assert.ok(content.includes('#') || content.length > 10);
 });
 
-test('listCommands returns all 14 commands', () => {
+test('listCommands returns all 15 commands', () => {
   const commands = sl.listCommands();
-  assert.strictEqual(commands.length, 14);
+  assert.strictEqual(commands.length, 15);
   const names = commands.map(c => c.name);
   assert.ok(names.includes('babysitter:call'));
   assert.ok(names.includes('babysitter:yolo'));
@@ -109,6 +109,7 @@ test('listCommands returns all 14 commands', () => {
   assert.ok(names.includes('babysitter:project-install'));
   assert.ok(names.includes('babysitter:user-install'));
   assert.ok(names.includes('babysitter:assimilate'));
+  assert.ok(names.includes('babysitter:team-install'));
 });
 
 test('suggestCommand suggests close matches', () => {
@@ -628,6 +629,8 @@ console.log('\nDiscovery:');
 const disc = require('../.codex/discovery');
 const { loadCodexMapping, getCommandMapping } = require('../.codex/codex-mapping');
 const { getLibraryStats } = require('../.codex/process-library');
+const { resolveRules } = require('../.codex/rules-resolver');
+const { buildIndex, loadIndex, searchIndex } = require('../.codex/process-index');
 
 test('parseProcessMarkers extracts @skill markers', () => {
   const tmpFile = path.join(os.tmpdir(), 'test-process.js');
@@ -672,6 +675,25 @@ test('process library stats report bundled upstream roots', () => {
   assert.ok(stats.processFiles > 100, 'expected substantial upstream process library size');
 });
 
+test('rules resolver merges layered rule files', () => {
+  const resolved = resolveRules(PROJECT_ROOT);
+  assert.ok(resolved.rules);
+  assert.ok(Array.isArray(resolved.layers));
+  assert.ok(resolved.rules.quality && resolved.rules.quality.minScore >= 80);
+});
+
+test('process index build/load/search works', () => {
+  const processRoot = path.join(PROJECT_ROOT, 'upstream', 'babysitter', 'skills', 'babysit', 'process');
+  const tmpIndex = path.join(os.tmpdir(), `babysitter-process-index-${Date.now()}.json`);
+  const built = buildIndex(processRoot, tmpIndex);
+  assert.ok(built.count > 100);
+  const loaded = loadIndex(tmpIndex);
+  assert.ok(loaded && loaded.count === built.count);
+  const results = searchIndex(loaded, 'web-development');
+  assert.ok(Array.isArray(results));
+  fs.unlinkSync(tmpIndex);
+});
+
 // ============================================================================
 // SKILL.md files existence tests
 // ============================================================================
@@ -681,7 +703,7 @@ console.log('\nSkill Files:');
 const expectedSkills = [
   'call', 'yolo', 'resume', 'plan', 'forever',
   'retrospect', 'model', 'issue',
-  'doctor', 'observe', 'help', 'project-install',
+  'doctor', 'observe', 'help', 'project-install', 'team-install',
   'user-install', 'assimilate'
 ];
 
