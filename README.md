@@ -21,6 +21,7 @@ This project was created by Babysitter already running on Codex.
 - See [docs/UPSTREAM_SYNC.md](./docs/UPSTREAM_SYNC.md) for process/skill sync from upstream Babysitter.
 - See [docs/COMPATIBILITY_MATRIX.md](./docs/COMPATIBILITY_MATRIX.md) for version support policy.
 - See [docs/REAL_WORLD_VALIDATION.md](./docs/REAL_WORLD_VALIDATION.md) for release validation scenarios.
+- See [docs/FEATURES_1_10.md](./docs/FEATURES_1_10.md) for implementation notes of the prioritized feature set.
 
 ## Full Test Scenarios
 
@@ -240,6 +241,28 @@ Advanced capabilities (event streaming, policy engine, model routing, telemetry,
 - File-based flags: `.a5c/config/features.json`
 - Env-based overrides: `BABYSITTER_FEATURE_<FLAG_NAME>`
 - Defaults: `.codex/feature-flags.js`
+
+## Requested Features (1-10) Status
+
+The top requested Codex harness features are now implemented in runtime:
+
+1. Session management UX: alias/tag/search resume selectors (`recent`, `tag:<x>`, `search:<q>`, `list`, `name <alias>`, `tag +/-<x>`).
+2. First-class notifications + event stream: stable `v1` JSON events with `id`, `seq`, `runId`, webhook/slack/desktop/file sinks.
+3. Long-task autonomous mode + approvals: staged approval policy, strict allowlists, retry backoff+jitter.
+4. Multi-repo orchestration: alias/scope-based workspace routing from `.a5c/workspace/repos.json`.
+5. Mid-session model switching: persisted `.a5c/config/model-policy.json` + per-step phase routing.
+6. Plan/Act hardening: immutable plan-mode execution blocks for mutating task kinds.
+7. Richer hooks lifecycle: `on-tool-error`, `on-policy-block`, `on-retry` + configurable payload transforms.
+8. MCP reliability toolkit: `doctor mcp` diagnostics for transport/auth/path/config readiness.
+9. Native GitHub issue/PR workflow: issue fetch + comments + optional apply mode + PR comment/create helpers.
+10. Cost/token telemetry + budgets: per-iteration telemetry history, soft/hard budget phases, adaptive prompt shrinking.
+
+### New Config Files
+
+- `.a5c/config/model-policy.json`
+- `.a5c/config/policies.json`
+- `.a5c/config/hook-transforms.json`
+- `.a5c/workspace/repos.json`
 
 ## SDK Contracts (Codex-Suitable)
 

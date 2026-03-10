@@ -2,8 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const { fetchIssue } = require('./github-workflow');
-const { findSession } = require('./state-index');
+const { spawnSync } = require('child_process');
+const { fetchIssue, fetchIssueComments, updatePullRequest } = require('./github-workflow');
+const { findSession, listSessions, updateSessionMetadata } = require('./state-index');
 const { runMcpDoctor } = require('./mcp-doctor');
 
 function policyPath(repoRoot) {
@@ -29,9 +30,10 @@ function writePolicy(repoRoot, policy) {
 function parseModelArgs(args) {
   const trimmed = String(args || '').trim();
   if (!trimmed || trimmed === 'show') return { action: 'show', pairs: [] };
+  if (trimmed === 'clear') return { action: 'clear', pairs: [] };
 
   if (!trimmed.startsWith('set')) {
-    return { action: 'invalid', error: 'Use "show" or "set <phase>=<model> ..."' };
+    return { action: 'invalid', error: 'Use "show", "clear", or "set <phase>=<model> ..."' };
   }
 
   const pairs = trimmed
@@ -67,12 +69,29 @@ function handleModelCommand(args, options = {}) {
   }
 
   if (parsed.action === 'show') {
+    const envPolicy = process.env.BABYSITTER_MODEL_POLICY_JSON
+      ? (() => {
+          try { return JSON.parse(process.env.BABYSITTER_MODEL_POLICY_JSON); } catch { return null; }
+        })()
+      : null;
     return {
       ok: true,
       action: 'show',
       applied: false,
       policy: readPolicy(repoRoot),
+      envPolicy,
       notes: ['Loaded current model routing policy.'],
+    };
+  }
+
+  if (parsed.action === 'clear') {
+    writePolicy(repoRoot, {});
+    return {
+      ok: true,
+      action: 'clear',
+      applied: true,
+      policy: {},
+      notes: ['Model routing policy cleared.'],
     };
   }
 
@@ -132,7 +151,17 @@ function parseIssueArgs(args) {
 
 function handleIssueCommand(args, options = {}) {
   const repoRoot = options.repoRoot || process.cwd();
-  const parsed = parseIssueArgs(args);
+  const trimmed = String(args || '').trim();
+  const apply = /(?:^|\s)--apply(?:\s|$)/.test(trimmed);
+  const openPr = /(?:^|\s)--open-pr(?:\s|$)/.test(trimmed);
+  const prMatch = trimmed.match(/(?:^|\s)--pr\s+(\d+)(?:\s|$)/);
+  const updatePrNumber = prMatch ? Number(prMatch[1]) : null;
+  const cleaned = trimmed
+    .replace(/\s--apply(?:\s|$)/g, ' ')
+    .replace(/\s--open-pr(?:\s|$)/g, ' ')
+    .replace(/\s--pr\s+\d+(?:\s|$)/g, ' ')
+    .trim();
+  const parsed = parseIssueArgs(cleaned);
   if (!parsed.ok) {
     return { ok: false, error: parsed.error };
   }
@@ -148,25 +177,135 @@ function handleIssueCommand(args, options = {}) {
   }
 
   const issue = fetched.issue;
+  const comments = fetchIssueComments(repo, issue.number);
+  const commentSnippets = comments.ok
+    ? comments.comments
+        .slice(-3)
+        .map((c) => String(c.body || '').replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+    : [];
   const plan = [
     `Understand issue #${issue.number}: ${issue.title}`,
     'Create minimal reproducible test covering the reported behavior',
     'Implement fix behind compatibility-safe defaults',
     'Run tests and summarize regression risk',
   ];
+  const prompt = [
+    `Implement GitHub issue #${issue.number} in ${repo}.`,
+    `Title: ${issue.title}`,
+    '',
+    'Issue body:',
+    String(issue.body || '(no body provided)').slice(0, 4000),
+  ].join('\n');
+  let prResult = null;
+  if (openPr) {
+    const prCreate = spawnSync(
+      process.platform === 'win32' ? 'gh.exe' : 'gh',
+      ['pr', 'create', '--repo', repo, '--fill'],
+      { encoding: 'utf8', timeout: 15000 }
+    );
+    prResult = {
+      ok: prCreate.status === 0,
+      stdout: String(prCreate.stdout || '').trim(),
+      stderr: String(prCreate.stderr || '').trim(),
+      exitCode: prCreate.status,
+    };
+  }
+  if (updatePrNumber) {
+    const prBody = [
+      `Issue context loaded: #${issue.number} (${issue.title})`,
+      '',
+      'Proposed plan:',
+      ...plan.map((s, i) => `${i + 1}. ${s}`),
+    ].join('\n');
+    prResult = updatePullRequest(repo, updatePrNumber, prBody);
+  }
 
   return {
     ok: true,
     issue,
+    commentSnippets,
     plan,
-    mode: 'plan',
-    nextAction: `babysitter call implement issue #${issue.number}: ${issue.title}`,
+    mode: apply ? 'apply' : 'plan',
+    apply,
+    nextAction: apply
+      ? `babysitter call ${prompt}`
+      : `babysitter call implement issue #${issue.number}: ${issue.title}`,
+    prompt,
+    prResult,
   };
 }
 
 function handleResumeSelector(args, options = {}) {
   const selector = String(args || '').trim() || 'recent';
   const repoRoot = options.repoRoot || process.cwd();
+
+  if (selector === 'list') {
+    return {
+      ok: true,
+      selector,
+      sessions: listSessions(repoRoot),
+      notes: ['Listing indexed sessions ordered by most-recent update.'],
+    };
+  }
+  if (selector.startsWith('search:')) {
+    const query = selector.slice(7).trim();
+    return {
+      ok: true,
+      selector,
+      sessions: listSessions(repoRoot, { query }),
+      notes: [`Search results for "${query}".`],
+    };
+  }
+
+  const nameMatch = selector.match(/^name\s+(.+)$/i);
+  if (nameMatch) {
+    const recent = findSession(repoRoot, 'recent');
+    if (!recent) {
+      return { ok: false, selector, error: 'No recent session found to rename.' };
+    }
+    const updated = updateSessionMetadata(repoRoot, recent.sessionId, { alias: nameMatch[1] });
+    return {
+      ok: updated.ok,
+      selector,
+      session: updated.session || null,
+      error: updated.error || null,
+      notes: updated.ok ? [`Session alias set to "${nameMatch[1]}".`] : [],
+    };
+  }
+
+  const tagAdd = selector.match(/^tag\s+\+(.+)$/i);
+  if (tagAdd) {
+    const recent = findSession(repoRoot, 'recent');
+    if (!recent) {
+      return { ok: false, selector, error: 'No recent session found to tag.' };
+    }
+    const updated = updateSessionMetadata(repoRoot, recent.sessionId, { addTag: tagAdd[1].trim() });
+    return {
+      ok: updated.ok,
+      selector,
+      session: updated.session || null,
+      error: updated.error || null,
+      notes: updated.ok ? [`Added tag "${tagAdd[1].trim()}".`] : [],
+    };
+  }
+
+  const tagRemove = selector.match(/^tag\s+\-(.+)$/i);
+  if (tagRemove) {
+    const recent = findSession(repoRoot, 'recent');
+    if (!recent) {
+      return { ok: false, selector, error: 'No recent session found to update tag.' };
+    }
+    const updated = updateSessionMetadata(repoRoot, recent.sessionId, { removeTag: tagRemove[1].trim() });
+    return {
+      ok: updated.ok,
+      selector,
+      session: updated.session || null,
+      error: updated.error || null,
+      notes: updated.ok ? [`Removed tag "${tagRemove[1].trim()}".`] : [],
+    };
+  }
+
   const session = findSession(repoRoot, selector);
   if (!session) {
     return {

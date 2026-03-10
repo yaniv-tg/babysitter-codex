@@ -1,7 +1,7 @@
 ---
 name: babysitter:issue
 description: Start a babysitter workflow from a GitHub issue.
-argument-hint: "<issue-number|url> [--repo owner/name]"
+argument-hint: "<issue-number|url> [--repo owner/name] [--apply] [--pr <number>] [--open-pr]"
 ---
 
 # babysitter:issue
@@ -20,9 +20,11 @@ Run issue-driven orchestration.
 4. Generate:
    - Concise implementation plan.
    - Proposed steps and risk notes.
-5. Ask for execution mode:
-   - `plan` only or `apply`.
-6. If `apply`:
+5. Optional actions:
+   - `--apply` -> return `mode=apply` and ready-to-run babysitter prompt.
+   - `--pr <number>` -> post plan comment to existing PR.
+   - `--open-pr` -> attempt `gh pr create --fill`.
+6. If in apply mode:
    - Start babysitter run with issue context in prompt.
 
 ## Output Contract

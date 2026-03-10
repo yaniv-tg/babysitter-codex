@@ -42,13 +42,13 @@ function dispatch(input) {
 
   let data = null;
   if (parsed.command === 'babysitter:model') {
-    data = handleModelCommand(parsed.args);
+    data = handleModelCommand(parsed.args, { repoRoot: process.cwd() });
   } else if (parsed.command === 'babysitter:issue') {
-    data = handleIssueCommand(parsed.args);
+    data = handleIssueCommand(parsed.args, { repoRoot: process.cwd() });
   } else if (parsed.command === 'babysitter:resume') {
-    data = handleResumeSelector(parsed.args);
+    data = handleResumeSelector(parsed.args, { repoRoot: process.cwd() });
   } else if (parsed.command === 'babysitter:doctor') {
-    data = handleDoctorCommand(parsed.args);
+    data = handleDoctorCommand(parsed.args, { repoRoot: process.cwd() });
   }
 
   return {

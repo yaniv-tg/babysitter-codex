@@ -46,7 +46,15 @@ function registerSession(repoRoot, session) {
       createdAt: now,
       updatedAt: now,
       lastRunId: session.runId || null,
+      runIds: session.runId ? [session.runId] : [],
     });
+  }
+  if (session.runId) {
+    const target = data.sessions.find((s) => s.sessionId === session.sessionId);
+    if (target) {
+      target.runIds = Array.from(new Set([...(target.runIds || []), session.runId]));
+      target.lastRunId = session.runId;
+    }
   }
   saveIndex(repoRoot, data);
   return data;
@@ -64,7 +72,73 @@ function findSession(repoRoot, selector) {
       .filter((s) => (s.tags || []).includes(tag))
       .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0] || null;
   }
+  if (token.startsWith('search:')) {
+    const query = token.slice(7).trim().toLowerCase();
+    if (!query) return null;
+    return [...data.sessions]
+      .filter((s) => {
+        const alias = String(s.alias || '').toLowerCase();
+        const sessionId = String(s.sessionId || '').toLowerCase();
+        const tags = (s.tags || []).map((t) => String(t).toLowerCase());
+        return alias.includes(query) || sessionId.includes(query) || tags.some((t) => t.includes(query));
+      })
+      .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0] || null;
+  }
   return data.sessions.find((s) => s.alias === token || s.sessionId === token) || null;
+}
+
+function listSessions(repoRoot, options = {}) {
+  const data = loadIndex(repoRoot);
+  const query = String(options.query || '').trim().toLowerCase();
+  const tag = String(options.tag || '').trim();
+  const includeRecentFirst = options.includeRecentFirst !== false;
+
+  let sessions = [...data.sessions];
+  if (tag) {
+    sessions = sessions.filter((s) => (s.tags || []).includes(tag));
+  }
+  if (query) {
+    sessions = sessions.filter((s) => {
+      const alias = String(s.alias || '').toLowerCase();
+      const sessionId = String(s.sessionId || '').toLowerCase();
+      const tags = (s.tags || []).map((t) => String(t).toLowerCase());
+      return alias.includes(query) || sessionId.includes(query) || tags.some((t) => t.includes(query));
+    });
+  }
+  if (includeRecentFirst) {
+    sessions.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  }
+  return sessions;
+}
+
+function updateSessionMetadata(repoRoot, sessionId, updates = {}) {
+  if (!sessionId) return { ok: false, error: 'sessionId is required' };
+  const data = loadIndex(repoRoot);
+  const target = data.sessions.find((s) => s.sessionId === sessionId);
+  if (!target) {
+    return { ok: false, error: `session ${sessionId} not found` };
+  }
+
+  if (updates.alias !== undefined) {
+    const alias = String(updates.alias || '').trim();
+    target.alias = alias || null;
+  }
+  if (Array.isArray(updates.tags)) {
+    target.tags = Array.from(new Set(updates.tags.map((t) => String(t).trim()).filter(Boolean)));
+  }
+  if (updates.addTag) {
+    target.tags = Array.from(new Set([...(target.tags || []), String(updates.addTag).trim()]));
+  }
+  if (updates.removeTag) {
+    target.tags = (target.tags || []).filter((t) => t !== String(updates.removeTag).trim());
+  }
+  if (updates.runId) {
+    target.runIds = Array.from(new Set([...(target.runIds || []), updates.runId]));
+    target.lastRunId = updates.runId;
+  }
+  target.updatedAt = new Date().toISOString();
+  saveIndex(repoRoot, data);
+  return { ok: true, session: target };
 }
 
 module.exports = {
@@ -72,4 +146,6 @@ module.exports = {
   saveIndex,
   registerSession,
   findSession,
+  listSessions,
+  updateSessionMetadata,
 };

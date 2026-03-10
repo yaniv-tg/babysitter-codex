@@ -30,9 +30,9 @@ const { appendTrace, resolveTracePath } = require('./trace-logger');
 const { loadFeatureFlags } = require('./feature-flags');
 const { registerSession } = require('./state-index');
 const { emitEvent, notify } = require('./event-stream');
-const { shouldBlockPlanAction, applyApprovalPolicy, nextRetryDelayMs } = require('./policy-engine');
+const { applyApprovalPolicy, nextRetryDelayMs, evaluateTaskPolicy } = require('./policy-engine');
 const { resolveModelForTask } = require('./model-router');
-const { updateTelemetry, estimateTokens, checkBudget } = require('./telemetry');
+const { updateTelemetry, estimateTokens, getBudgetStatus } = require('./telemetry');
 const { loadWorkspace, resolveRepoPath } = require('./workspace-manager');
 const { shrinkPrompt } = require('./prompt-shrinker');
 
@@ -322,6 +322,14 @@ async function main() {
     const ev = emitEvent('run.start', { runId, sessionId, processId: args.processId }, { repoRoot });
     if (featureFlags.notifications) notify(ev);
   }
+  if (featureFlags.sessionUx && sessionId) {
+    registerSession(repoRoot, {
+      sessionId,
+      runId,
+      alias: process.env.BABYSITTER_SESSION_ALIAS || null,
+      tags: (process.env.BABYSITTER_SESSION_TAGS || '').split(',').map((x) => x.trim()).filter(Boolean),
+    });
+  }
 
   // Associate session with this run
   if (supports('session:associate')) {
@@ -458,8 +466,13 @@ async function main() {
       });
       if (featureFlags.eventStreamV1) emitEvent('task.requested', { runId, iteration, effectId, kind }, { repoRoot });
 
-      if (featureFlags.planActHardening && shouldBlockPlanAction(process.env.BABYSITTER_MODE, kind)) {
-        const policyPayload = { runId, iteration, effectId, kind, reason: 'plan_mode_immutable' };
+      const policyCheck = evaluateTaskPolicy(task, {
+        mode: process.env.BABYSITTER_MODE,
+        iteration,
+        repoRoot,
+      });
+      if ((featureFlags.planActHardening || featureFlags.longTaskPolicies) && !policyCheck.allowed) {
+        const policyPayload = { runId, iteration, effectId, kind, reason: policyCheck.reason, details: policyCheck };
         fireHook('on-policy-block', policyPayload);
         appendTrace(runDir, { type: 'task.blocked', ...policyPayload });
         if (featureFlags.eventStreamV1) emitEvent('task.blocked', policyPayload, { repoRoot });
@@ -499,7 +512,11 @@ async function main() {
         }
         const freeform = await waitForStdinInput('Additional response (optional, press Enter to skip):\n> ');
         const policyDecision = featureFlags.longTaskPolicies
-          ? applyApprovalPolicy(task, { policy: process.env.BABYSITTER_APPROVAL_POLICY || 'interactive' })
+          ? applyApprovalPolicy(task, {
+              policy: process.env.BABYSITTER_APPROVAL_POLICY || 'interactive',
+              iteration,
+              repoRoot,
+            })
           : { approved: null };
         const approvePrompt = policyDecision.approved === null && /approve|approval/i.test(question)
           ? await waitForStdinInput('Approve this breakpoint? [Y/n]\n> ')
@@ -566,9 +583,9 @@ async function main() {
           : projectDir;
 
       if (featureFlags.costBudgets) {
-        const preBudget = checkBudget(runDir, process.env.BABYSITTER_BUDGET_USD || null);
         const softRatio = Number(process.env.BABYSITTER_BUDGET_SOFT_RATIO || 0.8);
-        if (preBudget.ratio !== null && preBudget.ratio >= softRatio) {
+        const preBudget = getBudgetStatus(runDir, process.env.BABYSITTER_BUDGET_USD || null, softRatio);
+        if (preBudget.phase === 'soft-limit') {
           const maxChars = Number(process.env.BABYSITTER_PROMPT_SHRINK_MAX_CHARS || 3000);
           const originalLength = agentPrompt.length;
           agentPrompt = shrinkPrompt(agentPrompt, { maxChars });
@@ -619,8 +636,12 @@ async function main() {
           tokens: estimatedTokens,
           estimatedCostUsd: estimatedTokens * 0.000002,
         });
-        const budgetCheck = checkBudget(runDir, process.env.BABYSITTER_BUDGET_USD || null);
-        if (!budgetCheck.allowed) {
+        const budgetCheck = getBudgetStatus(
+          runDir,
+          process.env.BABYSITTER_BUDGET_USD || null,
+          Number(process.env.BABYSITTER_BUDGET_SOFT_RATIO || 0.8),
+        );
+        if (budgetCheck.phase === 'hard-stop') {
           fireHook('on-policy-block', {
             runId,
             iteration,
@@ -628,6 +649,7 @@ async function main() {
             reason: 'budget_exceeded',
             estimatedCostUsd: updated.estimatedCostUsd,
             budgetUsd: budgetCheck.budgetUsd,
+            remainingUsd: budgetCheck.remainingUsd,
           });
           finalStatus = 'budget_exceeded';
           break;

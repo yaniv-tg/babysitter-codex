@@ -18,6 +18,15 @@ All notable changes to this project are documented in this file.
   - GitHub issue workflow helper (`.codex/github-workflow.js`)
 - New hook lifecycle types: `on-tool-error`, `on-policy-block`, `on-retry`.
 - Roadmap doc and feature-request issue template.
+- Feature-complete implementation pass for requested items 1-10:
+  - selector-based session UX (`list`, `search`, alias/tag management)
+  - event stream IDs/sequence and configurable notification sinks (including file sink)
+  - policy config with staged approvals + strict allowlists
+  - persisted model routing policy (`.a5c/config/model-policy.json`)
+  - richer MCP doctor checks + recommendations
+  - GitHub issue flow with comments, apply mode, and optional PR update/create paths
+  - telemetry history and explicit budget phase states (`normal`/`soft-limit`/`hard-stop`)
+  - docs: `docs/FEATURES_1_10.md`
 
 ### Changed
 - `orchestrate.js` now emits structured events, supports policy/model/telemetry integration, and records session metadata for resume UX.
