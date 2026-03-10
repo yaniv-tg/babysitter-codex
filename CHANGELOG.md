@@ -4,6 +4,31 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-03-11
+
+### Added
+- Team setup/install flow and lock architecture:
+  - `babysitter.lock.json`
+  - `babysitter:team-install`
+  - `scripts/team-install.js`
+- Runtime/content package split scaffolding (`packages/runtime`, `packages/content`).
+- Layered rules resolution and defaults (`.codex/rules-resolver.js`, `config/rules/*`).
+- Lazy process index cache (`.codex/process-index.js`) integrated into discovery.
+- Content integrity pipeline:
+  - `scripts/generate-content-manifest.js`
+  - `scripts/verify-content-manifest.js`
+  - `config/content-manifest.json`
+- Mapping contract checks and CI gates (`scripts/check-mapping-contract.js`, workflow updates).
+- Architecture docs:
+  - `docs/ARCHITECTURE_UPGRADES_1_8.md`
+  - `docs/CODEX_MAPPING.md` updates
+
+### Changed
+- Plugin manifest version bumped to `4.0.149`.
+- npm package version bumped to `0.1.5`.
+- README updated for version/mode changes and refreshed Blame Beni section.
+- Fixed command metadata regression in `.codex/plugin.json` (restored per-command descriptions).
+
 ### Added
 - Runtime/content package split scaffolding:
   - `packages/runtime`

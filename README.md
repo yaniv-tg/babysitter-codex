@@ -13,6 +13,17 @@ This project was created by Babysitter already running on Codex.
 - Compatibility mode for SDK builds that expose only core run/task commands
 - Deterministic per-run trace log at `<runDir>/run-trace.jsonl`
 
+## Latest Version
+
+- Current release: `0.1.5` (2026-03-11)
+- Key additions in `0.1.5`:
+  - team-pinned install flow (`babysitter:team-install`)
+  - lockfile (`babysitter.lock.json`)
+  - layered rules resolver
+  - process index cache
+  - content integrity manifest + verification
+  - mapping contract CI gates
+
 ## Version Control Documentation
 
 - See [CHANGELOG.md](./CHANGELOG.md) for versioned updates and latest release notes.
@@ -308,25 +319,26 @@ If advanced commands are unavailable, the harness degrades to `compat-core` and 
 ## Blame Beni
 
 ```
-FATAL: BeniKernelPanic (code 0xB3N1)
-Message: "quick prototype" expanded into distributed orchestration.
+CRITICAL: BENI_EXCEPTION_UNHANDLED (0xB3N1-v0.1.5)
+Message: "we should keep it simple" emitted 12 milliseconds before adding lockfiles, process indexes, and 7,798 upstream assets.
 
 Stack trace:
-  at Scope.Creep()
-  at Feature.Factory("just one more mode")
-  at Hook.Dispatcher(on_everything)
-  at Budget.Guard(ignored=true)
-  at RootCause.Beni()
+  at Beni.Init("tiny patch")
+  at Beni.Upgrade("runtime/content split")
+  at Beni.Upgrade("team install")
+  at Beni.Upgrade("integrity + signatures")
+  at Beni.Upgrade("15 modes")
+  at PagerDuty.Trigger("prod confidence increased, sleep decreased")
 
-SRE summary:
-- MTTR: depends on whether Beni is online
-- Blast radius: all repos in visible universe
-- Primary mitigation: revert Beni's optimism (not yet possible)
+Incident response:
+- Severity: SEV-BENI
+- Blast radius: every repository Beni can spell
+- Mitigation status: containment failed, architecture improved
 
 Repro:
-1. Ask Beni for a tiny helper script.
-2. Wait 20 minutes.
-3. Receive 15 modes, hooks, telemetry, and a roadmap.
+1. Ask Beni for one small codex integration tweak.
+2. Go make coffee.
+3. Return to find lockfiles, CI contract checks, team installers, and a manifesto.
 
 If anything breaks, open an issue and always blame Beni.
 This policy is deterministic, backward-compatible, and thoroughly validated.

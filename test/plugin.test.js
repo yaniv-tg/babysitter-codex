@@ -31,7 +31,7 @@ const sl = require('../.codex/skill-loader');
 test('loadPlugin returns valid manifest', () => {
   const plugin = sl.loadPlugin();
   assert.ok(plugin.name === 'babysitter');
-  assert.ok(plugin.version === '4.0.148');
+  assert.ok(plugin.version === '4.0.149');
   assert.ok(Array.isArray(plugin.commands));
   assert.strictEqual(plugin.commands.length, 15);
 });
