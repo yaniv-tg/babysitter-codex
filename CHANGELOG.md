@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Removed UTF-8 BOM from top-level `SKILL.md` so Codex reliably detects YAML frontmatter.
+- Hardened installer copy logic (`bin/postinstall.js`) to strip BOM from any copied `SKILL.md`, preventing `missing YAML frontmatter delimited by ---` load errors after install.
+
 ## [0.1.5] - 2026-03-11
 
 ### Added

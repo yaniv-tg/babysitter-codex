@@ -1,4 +1,4 @@
-﻿---
+---
 name: babysitter-codex
 description: >-
   Orchestrate complex, multi-step AI workflows with quality convergence loops,

@@ -23,6 +23,7 @@ This project was created by Babysitter already running on Codex.
   - process index cache
   - content integrity manifest + verification
   - mapping contract CI gates
+  - install hardening: strip UTF-8 BOM from copied `SKILL.md` files to prevent Codex frontmatter parse failures
 
 ## Version Control Documentation
 
@@ -192,6 +193,8 @@ After install, restart Codex so it loads the updated skill files.
 
 - If global install needs elevated rights, use `sudo npm install -g babysitter-codex`.
 - Prefer using `nvm` or user-owned Node install to avoid `sudo` where possible.
+- The installer now sanitizes UTF-8 BOM in `SKILL.md` during copy, preventing
+  `missing YAML frontmatter delimited by ---` warnings from Codex skill loading.
 
 ## Uninstall
 

@@ -29,6 +29,14 @@ function copyRecursive(src, dest) {
       copyRecursive(path.join(src, entry), path.join(dest, entry));
     }
   } else {
+    // Codex requires SKILL.md frontmatter to begin exactly with "---".
+    // Strip UTF-8 BOM if present to avoid loader parse failures.
+    if (path.basename(src) === 'SKILL.md') {
+      const file = fs.readFileSync(src);
+      const hasBom = file.length >= 3 && file[0] === 0xef && file[1] === 0xbb && file[2] === 0xbf;
+      fs.writeFileSync(dest, hasBom ? file.subarray(3) : file);
+      return;
+    }
     fs.copyFileSync(src, dest);
   }
 }
