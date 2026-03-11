@@ -8,6 +8,10 @@ All notable changes to this project are documented in this file.
 - Removed UTF-8 BOM from top-level `SKILL.md` so Codex reliably detects YAML frontmatter.
 - Hardened installer copy logic (`bin/postinstall.js`) to strip BOM from any copied `SKILL.md`, preventing `missing YAML frontmatter delimited by ---` load errors after install.
 
+### Changed
+- Migrated npm package name to scoped publish target: `@yaniv-tg/babysitter-codex`.
+- Updated README install/uninstall/verify commands to use the scoped package.
+
 ## [0.1.5] - 2026-03-11
 
 ### Added

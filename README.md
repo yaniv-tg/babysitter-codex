@@ -79,6 +79,14 @@ Babysitter is external and activated by this skill using natural-language trigge
 
 `babysitter-codex` installs the Babysitter SDK dependency automatically. Users do not need a separate manual SDK install for normal usage.
 
+## npm Package Name
+
+Install from the scoped package:
+
+- `@yaniv-tg/babysitter-codex`
+
+The unscoped `babysitter-codex` name is currently a security placeholder on npm and is not used for this project.
+
 ## Installation (Windows)
 
 ### 1. Verify prerequisites (PowerShell)
@@ -92,7 +100,7 @@ codex --version
 ### 2. Install globally from npm
 
 ```powershell
-npm.cmd install -g babysitter-codex
+npm.cmd install -g @yaniv-tg/babysitter-codex
 ```
 
 ### 3. Or install from local repo clone
@@ -105,7 +113,7 @@ npm.cmd install -g .
 ### 4. Verify install
 
 ```powershell
-npm.cmd ls -g babysitter-codex --depth=0
+npm.cmd ls -g @yaniv-tg/babysitter-codex --depth=0
 ```
 
 ### 5. Restart Codex
@@ -130,7 +138,7 @@ codex --version
 ### 2. Install globally from npm
 
 ```bash
-npm install -g babysitter-codex
+npm install -g @yaniv-tg/babysitter-codex
 ```
 
 ### 3. Or install from local repo clone
@@ -143,7 +151,7 @@ npm install -g .
 ### 4. Verify install
 
 ```bash
-npm ls -g babysitter-codex --depth=0
+npm ls -g @yaniv-tg/babysitter-codex --depth=0
 ls -l ~/.codex/skills/babysitter-codex/.codex/hooks/*.sh
 ```
 
@@ -170,7 +178,7 @@ codex --version
 ### 2. Install globally from npm
 
 ```bash
-npm install -g babysitter-codex
+npm install -g @yaniv-tg/babysitter-codex
 ```
 
 ### 3. Or install from local repo clone
@@ -183,7 +191,7 @@ npm install -g .
 ### 4. Verify install
 
 ```bash
-npm ls -g babysitter-codex --depth=0
+npm ls -g @yaniv-tg/babysitter-codex --depth=0
 ```
 
 ### 5. Restart Codex
@@ -192,7 +200,7 @@ After install, restart Codex so it loads the updated skill files.
 
 ### Linux notes
 
-- If global install needs elevated rights, use `sudo npm install -g babysitter-codex`.
+- If global install needs elevated rights, use `sudo npm install -g @yaniv-tg/babysitter-codex`.
 - Prefer using `nvm` or user-owned Node install to avoid `sudo` where possible.
 - The installer now sanitizes UTF-8 BOM in `SKILL.md` during copy, preventing
   `missing YAML frontmatter delimited by ---` warnings from Codex skill loading.
@@ -202,19 +210,19 @@ After install, restart Codex so it loads the updated skill files.
 ### Windows
 
 ```powershell
-npm.cmd uninstall -g babysitter-codex
+npm.cmd uninstall -g @yaniv-tg/babysitter-codex
 ```
 
 ### Linux
 
 ```bash
-npm uninstall -g babysitter-codex
+npm uninstall -g @yaniv-tg/babysitter-codex
 ```
 
 ### macOS
 
 ```bash
-npm uninstall -g babysitter-codex
+npm uninstall -g @yaniv-tg/babysitter-codex
 ```
 
 ## Quick Start (How To Actually Run It)

@@ -1,5 +1,5 @@
 {
-  "name": "babysitter-codex",
+  "name": "@yaniv-tg/babysitter-codex",
   "version": "0.1.5",
   "description": "Babysitter orchestration plugin for OpenAI Codex CLI - multi-step AI workflows with full upstream process library, 15 slash commands, and BOM-safe SKILL installation",
   "scripts": {
@@ -46,11 +46,14 @@
   ],
   "author": "a5c.ai",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/a5c-ai/babysitter-codex"
+    "url": "https://github.com/yaniv-tg/babysitter-codex"
   },
-  "homepage": "https://github.com/a5c-ai/babysitter-codex#readme",
+  "homepage": "https://github.com/yaniv-tg/babysitter-codex#readme",
   "dependencies": {
     "@a5c-ai/babysitter-sdk": "^0.0.173"
   }
