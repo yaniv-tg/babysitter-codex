@@ -65,11 +65,18 @@ Default process-library root for Codex mapping:
 Override with:
 - `BABYSITTER_PROCESS_LIBRARY_ROOT=<path>`
 
-## Important: No Native /babysitter Slash Commands
+## Important: Use Command Phrases (Not Slash Commands)
 
-Codex does not have built-in `/babysitter:*` commands.
+Codex does not execute custom plugin commands from `/...` input. If you type
+`/babysitter:call`, Codex will reject it as an unrecognized built-in command.
 
-Babysitter is external and activated by this skill using natural-language triggers (for example: `babysitter`, `orchestrate`, `yolo`, `resume`, `doctor`).
+Use babysitter command phrases in chat instead:
+
+- `babysitter call ...`
+- `babysitter yolo ...`
+- `babysitter resume ...`
+- `babysitter doctor ...`
+- `babysitter help`
 
 ## Requirements
 
