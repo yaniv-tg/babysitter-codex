@@ -12,6 +12,10 @@ Operational checklist for maintainers and release managers.
 ## Upstream Sync
 Follow `docs/UPSTREAM_SYNC.md`.
 
+## Downstream Staging PR Sync
+Follow `docs/DOWNSTREAM_STAGING_SYNC.md` to auto-open/update the rolling PR from
+`babysitter-codex` changes into `a5c-ai/babysitter:staging`.
+
 ## Release Flow
 1. Ensure `main` is green in CI matrix.
 2. Confirm compatibility policy is still valid.

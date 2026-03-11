@@ -31,6 +31,7 @@ This project was created by Babysitter already running on Codex.
 - See [docs/ROADMAP.md](./docs/ROADMAP.md) for planned feature milestones and rollout order.
 - See [docs/MAINTAINER_RUNBOOK.md](./docs/MAINTAINER_RUNBOOK.md) for maintainer operations.
 - See [docs/UPSTREAM_SYNC.md](./docs/UPSTREAM_SYNC.md) for process/skill sync from upstream Babysitter.
+- See [docs/DOWNSTREAM_STAGING_SYNC.md](./docs/DOWNSTREAM_STAGING_SYNC.md) for automatic PR sync from this repo into `a5c-ai/babysitter:staging`.
 - See [docs/COMPATIBILITY_MATRIX.md](./docs/COMPATIBILITY_MATRIX.md) for version support policy.
 - See [docs/REAL_WORLD_VALIDATION.md](./docs/REAL_WORLD_VALIDATION.md) for release validation scenarios.
 - See [docs/FEATURES_1_10.md](./docs/FEATURES_1_10.md) for implementation notes of the prioritized feature set.
