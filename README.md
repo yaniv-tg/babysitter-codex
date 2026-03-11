@@ -87,6 +87,13 @@ Install from the scoped package:
 
 The unscoped `babysitter-codex` name is currently a security placeholder on npm and is not used for this project.
 
+### npm Status (2026-03-12)
+
+- Published and installable from npm as:
+  - `@yaniv-tg/babysitter-codex@0.1.5`
+- Recommended install command:
+  - `npm install -g @yaniv-tg/babysitter-codex`
+
 ## Installation (Windows)
 
 ### 1. Verify prerequisites (PowerShell)
