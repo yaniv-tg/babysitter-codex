@@ -36,6 +36,44 @@ test('loadPlugin returns valid manifest', () => {
   assert.strictEqual(plugin.commands.length, 15);
 });
 
+test('resolvePluginRoot prefers explicit argument', () => {
+  const resolved = sl.resolvePluginRoot({ pluginRoot: './.codex' });
+  assert.ok(resolved.endsWith(path.join('.codex')));
+});
+
+test('resolvePluginRoot uses CODEX_PLUGIN_ROOT env', () => {
+  const originalCodex = process.env.CODEX_PLUGIN_ROOT;
+  const originalClaude = process.env.CLAUDE_PLUGIN_ROOT;
+  process.env.CODEX_PLUGIN_ROOT = '/tmp/codex-plugin-root';
+  process.env.CLAUDE_PLUGIN_ROOT = '/tmp/claude-plugin-root';
+  const resolved = sl.resolvePluginRoot();
+  assert.strictEqual(resolved, path.resolve('/tmp/codex-plugin-root'));
+  if (originalCodex === undefined) delete process.env.CODEX_PLUGIN_ROOT; else process.env.CODEX_PLUGIN_ROOT = originalCodex;
+  if (originalClaude === undefined) delete process.env.CLAUDE_PLUGIN_ROOT; else process.env.CLAUDE_PLUGIN_ROOT = originalClaude;
+});
+
+test('resolvePluginRoot uses CLAUDE_PLUGIN_ROOT when CODEX_PLUGIN_ROOT missing', () => {
+  const originalCodex = process.env.CODEX_PLUGIN_ROOT;
+  const originalClaude = process.env.CLAUDE_PLUGIN_ROOT;
+  delete process.env.CODEX_PLUGIN_ROOT;
+  process.env.CLAUDE_PLUGIN_ROOT = '/tmp/claude-plugin-root';
+  const resolved = sl.resolvePluginRoot();
+  assert.strictEqual(resolved, path.resolve('/tmp/claude-plugin-root'));
+  if (originalCodex === undefined) delete process.env.CODEX_PLUGIN_ROOT; else process.env.CODEX_PLUGIN_ROOT = originalCodex;
+  if (originalClaude === undefined) delete process.env.CLAUDE_PLUGIN_ROOT; else process.env.CLAUDE_PLUGIN_ROOT = originalClaude;
+});
+
+test('resolvePluginRoot falls back to packaged .codex root', () => {
+  const originalCodex = process.env.CODEX_PLUGIN_ROOT;
+  const originalClaude = process.env.CLAUDE_PLUGIN_ROOT;
+  delete process.env.CODEX_PLUGIN_ROOT;
+  delete process.env.CLAUDE_PLUGIN_ROOT;
+  const resolved = sl.resolvePluginRoot();
+  assert.ok(resolved && resolved.endsWith(path.join('.codex')));
+  if (originalCodex === undefined) delete process.env.CODEX_PLUGIN_ROOT; else process.env.CODEX_PLUGIN_ROOT = originalCodex;
+  if (originalClaude === undefined) delete process.env.CLAUDE_PLUGIN_ROOT; else process.env.CLAUDE_PLUGIN_ROOT = originalClaude;
+});
+
 test('resolveCommandName resolves canonical names', () => {
   assert.strictEqual(sl.resolveCommandName('babysitter:call'), 'babysitter:call');
   assert.strictEqual(sl.resolveCommandName('babysitter:yolo'), 'babysitter:yolo');
