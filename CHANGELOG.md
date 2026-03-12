@@ -4,9 +4,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Process mining command:
+  - `npm run mine:process`
+  - `.codex/process-mining.js` analyzer for run journals and hook logs
+  - `scripts/mine-process.js` report writer (JSON + Markdown)
+  - `test/process-mining.test.js` coverage
+
 ### Fixed
 - Removed UTF-8 BOM from top-level `SKILL.md` so Codex reliably detects YAML frontmatter.
 - Hardened installer copy logic (`bin/postinstall.js`) to strip BOM from any copied `SKILL.md`, preventing `missing YAML frontmatter delimited by ---` load errors after install.
+- Fixed `skill:discover` wrapper behavior for SDK builds that require `--plugin-root`:
+  - Added canonical plugin-root auto-resolution in `.codex/skill-loader.js`
+  - `discoverSkills()` now injects `--plugin-root` automatically and surfaces resolved `pluginRoot` in output
+  - Removed brittle plugin-root guessing from `.codex/orchestrate.js` discovery call
+  - Updated docs/examples to avoid bare `skill:discover --json` usage
 
 ### Changed
 - Migrated npm package name to scoped publish target: `@yaniv-tg/babysitter-codex`.
