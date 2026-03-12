@@ -85,7 +85,7 @@ jobs:
           fi
 
           git commit -m "chore(sync): update babysitter-codex from ${SOURCE_REPO}@${SOURCE_SHA:0:7}"
-          git push --force-with-lease origin "${SYNC_BRANCH}"
+          git push --force-with-lease origin "${SYNC_BRANCH}" || git push --force origin "${SYNC_BRANCH}"
 
           PR_BODY="$(mktemp)"
           cat > "${PR_BODY}" <<EOF
