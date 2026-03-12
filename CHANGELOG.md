@@ -4,13 +4,6 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-### Added
-- Process mining command:
-  - `npm run mine:process`
-  - `.codex/process-mining.js` analyzer for run journals and hook logs
-  - `scripts/mine-process.js` report writer (JSON + Markdown)
-  - `test/process-mining.test.js` coverage
-
 ### Fixed
 - Removed UTF-8 BOM from top-level `SKILL.md` so Codex reliably detects YAML frontmatter.
 - Hardened installer copy logic (`bin/postinstall.js`) to strip BOM from any copied `SKILL.md`, preventing `missing YAML frontmatter delimited by ---` load errors after install.

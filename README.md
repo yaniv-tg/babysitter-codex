@@ -251,16 +251,6 @@ babysitter resume latest incomplete run
 babysitter doctor current run
 ```
 
-Run process mining on local run history:
-
-```bash
-npm run mine:process
-```
-
-This generates:
-- `.a5c/reports/process-mining-latest.json`
-- `.a5c/reports/process-mining-latest.md`
-
 You can also run the SDK CLI directly in terminal:
 
 ```bash
