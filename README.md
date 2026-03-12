@@ -37,6 +37,7 @@ This project was created by Babysitter already running on Codex.
 - See [docs/FEATURES_1_10.md](./docs/FEATURES_1_10.md) for implementation notes of the prioritized feature set.
 - See [docs/CODEX_MAPPING.md](./docs/CODEX_MAPPING.md) for upstream-to-codex command/process mapping.
 - See [docs/ARCHITECTURE_UPGRADES_1_8.md](./docs/ARCHITECTURE_UPGRADES_1_8.md) for lock/install/rules/index/integrity architecture.
+- See [commands/README.md](./commands/README.md) for per-command reference docs (upstream-style structure adapted for Codex).
 
 ## Full Test Scenarios
 

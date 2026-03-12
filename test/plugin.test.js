@@ -754,6 +754,36 @@ for (const skill of expectedSkills) {
   });
 }
 
+console.log('\nCommand Docs:');
+
+const expectedCommandDocs = [
+  'README.md',
+  'call.md',
+  'yolo.md',
+  'resume.md',
+  'plan.md',
+  'forever.md',
+  'doctor.md',
+  'observe.md',
+  'retrospect.md',
+  'model.md',
+  'issue.md',
+  'help.md',
+  'project-install.md',
+  'team-install.md',
+  'user-install.md',
+  'assimilate.md',
+];
+
+for (const doc of expectedCommandDocs) {
+  test(`command doc exists: ${doc}`, () => {
+    const docPath = path.join(PROJECT_ROOT, 'commands', doc);
+    assert.ok(fs.existsSync(docPath), `Missing command doc: ${docPath}`);
+    const content = fs.readFileSync(docPath, 'utf8');
+    assert.ok(content.length > 50, `Command doc too short: ${doc}`);
+  });
+}
+
 // ============================================================================
 // Hook scripts existence tests
 // ============================================================================

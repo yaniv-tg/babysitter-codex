@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Upstream-style command documentation set under `commands/`:
+  - `commands/README.md` index
+  - one doc per babysitter mode (`call`, `yolo`, `resume`, `plan`, `forever`, `doctor`, `observe`, `retrospect`, `model`, `issue`, `help`, `project-install`, `team-install`, `user-install`, `assimilate`)
+- README link to the new command reference documentation.
+
 ### Fixed
 - Removed UTF-8 BOM from top-level `SKILL.md` so Codex reliably detects YAML frontmatter.
 - Hardened installer copy logic (`bin/postinstall.js`) to strip BOM from any copied `SKILL.md`, preventing `missing YAML frontmatter delimited by ---` load errors after install.
