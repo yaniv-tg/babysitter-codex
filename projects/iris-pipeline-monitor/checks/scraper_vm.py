@@ -235,6 +235,92 @@ def check_avatar_health(
             elif status == "error":
                 agent["error"] += 1
 
+    # Read Telegram-specific scheduler log
+    try:
+        tg_cmd = _powershell_encoded(
+            f'Get-Content "{log_path}\\telegram_scheduler.jsonl" -Tail 5000'
+        )
+        tg_output = _run_ssh_command(ssh_client, tg_cmd, timeout=30)
+        tg_entry_count = 0
+        if tg_output:
+            for tg_line in tg_output.splitlines():
+                tg_line = tg_line.strip()
+                if not tg_line:
+                    continue
+                try:
+                    entry = json.loads(tg_line)
+                except json.JSONDecodeError:
+                    continue
+
+                agent_name = entry.get("Agent_name") or entry.get("agent_name")
+                if not agent_name:
+                    continue
+
+                timestamp_raw = entry.get("timestamp")
+                if not timestamp_raw:
+                    continue
+
+                ts = None
+                for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d %H:%M:%S"):
+                    try:
+                        ts = datetime.strptime(timestamp_raw, fmt).replace(tzinfo=timezone.utc)
+                        break
+                    except ValueError:
+                        continue
+
+                if ts is None:
+                    continue
+
+                tg_entry_count += 1
+
+                if agent_name not in agents:
+                    agents[agent_name] = {
+                        "total": 0,
+                        "success": 0,
+                        "error": 0,
+                        "last_activity": None,
+                        "type": entry.get("type", "Telegram"),
+                        "groups_collected": None,
+                        "members_collected": None,
+                        "messages_collected": None,
+                        "last_run_time": None,
+                    }
+
+                agent = agents[agent_name]
+
+                if agent["last_activity"] is None or ts > datetime.fromisoformat(agent["last_activity"]):
+                    agent["last_activity"] = ts.isoformat()
+
+                for field, keys in (
+                    ("groups_collected", ("groups_count", "groups_collected", "group_count")),
+                    ("members_collected", ("members_count", "members_collected", "member_count")),
+                    ("messages_collected", ("messages_count", "messages_collected", "message_count")),
+                ):
+                    for key in keys:
+                        val = entry.get(key)
+                        if val is not None:
+                            agent[field] = val
+                            break
+
+                status_lower = (entry.get("status") or "").lower()
+                if status_lower in ("started", "success"):
+                    if agent["last_run_time"] is None or ts.isoformat() > agent["last_run_time"]:
+                        agent["last_run_time"] = ts.isoformat()
+
+                if ts >= cutoff:
+                    status = (entry.get("status") or "").lower()
+                    if status in ("started",):
+                        continue
+                    agent["total"] += 1
+                    if status == "success":
+                        agent["success"] += 1
+                    elif status == "error":
+                        agent["error"] += 1
+
+        logger.info("Telegram scheduler log: %d entries parsed", tg_entry_count)
+    except Exception:
+        logger.warning("Failed to read telegram_scheduler.jsonl (may not exist)", exc_info=True)
+
     # Compute success rates
     results = {}
     for agent_name, data in agents.items():
@@ -366,6 +452,31 @@ def check_system_health(ssh_client: paramiko.SSHClient) -> dict:
     return result
 
 
+def _get_local_irisdata_folders(ssh_client: paramiko.SSHClient) -> tuple[int, list[str]]:
+    """List directories under C:\\irisdata on the scraper VM.
+
+    Returns:
+        Tuple of (folder_count, folder_names_list).
+    """
+    try:
+        folder_cmd = _powershell_encoded(
+            'Get-ChildItem "C:\\irisdata" -Directory -ErrorAction SilentlyContinue '
+            '| Select-Object -ExpandProperty Name'
+        )
+        folder_output = _run_ssh_command(ssh_client, folder_cmd, timeout=15)
+        local_folders = []
+        if folder_output:
+            for dirname in folder_output.splitlines():
+                dirname = dirname.strip()
+                if dirname:
+                    local_folders.append(dirname)
+        logger.info("Local irisdata folders: %d found", len(local_folders))
+        return len(local_folders), local_folders
+    except Exception:
+        logger.warning("Failed to list local irisdata folders", exc_info=True)
+        return 0, []
+
+
 def check_gcs_sync(ssh_client: paramiko.SSHClient) -> dict:
     """Check the last GCS sync log timestamp.
 
@@ -373,8 +484,11 @@ def check_gcs_sync(ssh_client: paramiko.SSHClient) -> dict:
         ssh_client: Connected paramiko SSH client.
 
     Returns:
-        Dict with last_sync_time and staleness information.
+        Dict with last_sync_time, staleness information, and local folder counts.
     """
+    # Collect local avatar data folder info
+    local_folder_count, local_folders = _get_local_irisdata_folders(ssh_client)
+
     try:
         output = _run_ssh_command(
             ssh_client,
@@ -383,7 +497,11 @@ def check_gcs_sync(ssh_client: paramiko.SSHClient) -> dict:
         )
     except Exception:
         logger.exception("Failed to check GCS sync logs")
-        return {"error": "Failed to check GCS sync logs via SSH"}
+        return {
+            "error": "Failed to check GCS sync logs via SSH",
+            "local_folder_count": local_folder_count,
+            "local_folders": local_folders,
+        }
 
     if not output or "Cannot find path" in output:
         return {
@@ -391,6 +509,8 @@ def check_gcs_sync(ssh_client: paramiko.SSHClient) -> dict:
             "last_sync_file": None,
             "stale_hours": None,
             "error": "GCS sync log directory not found",
+            "local_folder_count": local_folder_count,
+            "local_folders": local_folders,
         }
 
     try:
@@ -422,6 +542,8 @@ def check_gcs_sync(ssh_client: paramiko.SSHClient) -> dict:
                     "last_sync_time": sync_time.isoformat() if sync_time else last_write,
                     "last_sync_file": name,
                     "stale_hours": stale_hours,
+                    "local_folder_count": local_folder_count,
+                    "local_folders": local_folders,
                 }
     except Exception:
         logger.exception("Failed to parse GCS sync output")
@@ -431,4 +553,6 @@ def check_gcs_sync(ssh_client: paramiko.SSHClient) -> dict:
         "last_sync_file": None,
         "stale_hours": None,
         "error": "Failed to parse GCS sync log output",
+        "local_folder_count": local_folder_count,
+        "local_folders": local_folders,
     }
