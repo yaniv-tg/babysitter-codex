@@ -140,7 +140,7 @@ while [ "${ITERATION}" -lt "${MAX_ITERATIONS}" ] && [ "${LOOP_DONE}" -eq 0 ]; do
   export CODEX_TURN_INDEX="${ITERATION}"
 
   # ---------------------------------------------------------------------------
-  # session:check-iteration — runs before the iteration guard
+  # session:check-iteration - runs before the iteration guard
   # ---------------------------------------------------------------------------
   echo "[loop-control] Checking session iteration limits..."
   SESSION_CHECK="$(babysitter session:check-iteration --session-id "${SESSION_ID}" --state-dir "${A5C_DIR}" --json 2>&1)" || true

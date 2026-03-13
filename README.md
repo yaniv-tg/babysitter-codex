@@ -15,15 +15,13 @@ This project was created by Babysitter already running on Codex.
 
 ## Latest Version
 
-- Current release: `0.1.5` (2026-03-11)
-- Key additions in `0.1.5`:
-  - team-pinned install flow (`babysitter:team-install`)
-  - lockfile (`babysitter.lock.json`)
-  - layered rules resolver
-  - process index cache
-  - content integrity manifest + verification
-  - mapping contract CI gates
-  - install hardening: strip UTF-8 BOM from copied `SKILL.md` files to prevent Codex frontmatter parse failures
+- Current release: `0.1.6` (2026-03-13)
+- Key additions in `0.1.6`:
+  - stop-hook fallback decision engine (`.codex/hooks/stop-decision.js`)
+  - stop-hook compatibility hardening for SDKs without `hook:run`
+  - fixed stop-decision status/task lookup to use `runId` correctly
+  - Windows `npx.cmd` fallback hardening in `.codex/sdk-cli.js`
+  - shell hook line-ending guardrails (`.gitattributes` + integration test checks)
 
 ## Version Control Documentation
 
@@ -95,10 +93,10 @@ Install from the scoped package:
 
 The unscoped `babysitter-codex` name is currently a security placeholder on npm and is not used for this project.
 
-### npm Status (2026-03-12)
+### npm Status (2026-03-13)
 
 - Published and installable from npm as:
-  - `@yaniv-tg/babysitter-codex@0.1.5`
+  - `@yaniv-tg/babysitter-codex@0.1.6`
 - Recommended install command:
   - `npm install -g @yaniv-tg/babysitter-codex`
 

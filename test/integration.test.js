@@ -26,11 +26,11 @@ function testSyntax() {
       execFileSync('node', ['--check', file], { encoding: 'utf8' });
       passed++;
     } catch (err) {
-      console.error(`  ✗ Syntax error in ${path.relative(PROJECT_ROOT, file)}`);
+      console.error(`  x Syntax error in ${path.relative(PROJECT_ROOT, file)}`);
       throw err;
     }
   }
-  console.log(`  ✓ syntax: ${passed} JS files pass node --check`);
+  console.log(`  ok syntax: ${passed} JS files pass node --check`);
 }
 
 // Test: All CommonJS modules can be required
@@ -58,6 +58,7 @@ function testRequire() {
     '.codex/hooks/read-json.js',
     '.codex/hooks/write-json.js',
     '.codex/hooks/build-task-payload.js',
+    '.codex/hooks/stop-decision.js',
   ];
 
   // CLI scripts that call process.exit() at top level when invoked without
@@ -70,7 +71,7 @@ function testRequire() {
   for (const mod of modules) {
     const full = path.join(PROJECT_ROOT, mod);
     if (!fs.existsSync(full)) {
-      console.warn(`  ⚠ ${mod} not found, skipping`);
+      console.warn(`  warn ${mod} not found, skipping`);
       continue;
     }
 
@@ -100,19 +101,29 @@ function testRequire() {
       if (err.code === 'MODULE_NOT_FOUND') throw err;
     }
   }
-  console.log(`  ✓ require: all modules load without MODULE_NOT_FOUND errors`);
+  console.log(`  ok require: all modules load without MODULE_NOT_FOUND errors`);
 }
 
-// Test: loop-control.sh syntax
+// Test: hook shell script syntax
 function testShellSyntax() {
-  const shellFile = path.join(CODEX_DIR, 'hooks', 'loop-control.sh');
-  try {
-    execFileSync('sh', ['-n', shellFile], { encoding: 'utf8' });
-    console.log('  ✓ shell: loop-control.sh passes sh -n');
-  } catch (err) {
-    console.error('  ✗ loop-control.sh has syntax errors');
-    throw err;
+  const shellFiles = [
+    path.join(CODEX_DIR, 'hooks', 'loop-control.sh'),
+    path.join(CODEX_DIR, 'hooks', 'babysitter-stop-hook.sh'),
+    path.join(CODEX_DIR, 'hooks', 'babysitter-session-start.sh'),
+  ];
+  for (const shellFile of shellFiles) {
+    const content = fs.readFileSync(shellFile, 'utf8');
+    if (content.includes('\r')) {
+      throw new Error(`CRLF detected in shell hook (must be LF-only): ${path.relative(PROJECT_ROOT, shellFile)}`);
+    }
+    try {
+      execFileSync('sh', ['-n', shellFile], { encoding: 'utf8' });
+    } catch (err) {
+      console.error(`  x shell syntax error in ${path.relative(PROJECT_ROOT, shellFile)}`);
+      throw err;
+    }
   }
+  console.log('  ok shell: hook scripts pass sh -n');
 }
 
 console.log('Integration Tests:');

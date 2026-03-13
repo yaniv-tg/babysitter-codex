@@ -131,6 +131,23 @@ function testSessionManager() {
   console.log('  ✓ session-manager: exports all expected functions');
 }
 
+// Test: stop-decision fallback logic
+function testStopDecision() {
+  const sd = require('../.codex/hooks/stop-decision');
+  assert.ok(typeof sd.computeStopDecision === 'function');
+
+  const terminal = sd.computeStopDecision({ runState: 'completed', pendingCount: 3, statusOk: true, pendingOk: true });
+  assert.strictEqual(terminal.decision, 'approve');
+
+  const pending = sd.computeStopDecision({ runState: 'running', pendingCount: 2, statusOk: true, pendingOk: true });
+  assert.strictEqual(pending.decision, 'block');
+
+  const unknown = sd.computeStopDecision({ runState: '', pendingCount: 0, statusOk: false, pendingOk: true });
+  assert.strictEqual(unknown.decision, 'block');
+
+  console.log('  ✓ stop-decision: conservative block-unless-terminal behavior');
+}
+
 // Run all tests
 console.log('Unit Tests:');
 try {
@@ -142,6 +159,7 @@ try {
   testSdkCli();
   testTraceLogger();
   testSessionManager();
+  testStopDecision();
   console.log('\nAll unit tests passed!');
 } catch (err) {
   console.error('\nTest failed:', err.message);

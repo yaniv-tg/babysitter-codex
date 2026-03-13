@@ -1,7 +1,7 @@
 {
   "name": "@yaniv-tg/babysitter-codex",
-  "version": "0.1.5",
-  "description": "Babysitter orchestration plugin for OpenAI Codex CLI - multi-step AI workflows with full upstream process library, 15 orchestration modes, and BOM-safe SKILL installation",
+  "version": "0.1.6",
+  "description": "Babysitter orchestration plugin for OpenAI Codex CLI - multi-step AI workflows with full upstream process library, hardened stop-hook loop control, and BOM-safe SKILL installation",
   "scripts": {
     "test": "node test/integration.test.js && node test/harness.test.js && node test/plugin.test.js && node test/features-1-10.test.js && node test/process-mining.test.js",
     "test:unit": "node test/harness.test.js",
