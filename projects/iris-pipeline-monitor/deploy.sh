@@ -41,9 +41,10 @@ gcloud run jobs describe ${JOB_NAME} --region=${REGION} --project=${PROJECT} > /
 
 echo "=== Creating/updating Cloud Scheduler ==="
 SCHEDULER_NAME="iris-pipeline-monitor-schedule"
-gcloud scheduler jobs describe ${SCHEDULER_NAME} --location=${REGION} --project=${PROJECT} > /dev/null 2>&1 && \
+SCHEDULER_LOCATION="me-central2"  # Scheduler location differs from Cloud Run region
+gcloud scheduler jobs describe ${SCHEDULER_NAME} --location=${SCHEDULER_LOCATION} --project=${PROJECT} > /dev/null 2>&1 && \
   gcloud scheduler jobs update http ${SCHEDULER_NAME} \
-    --location=${REGION} \
+    --location=${SCHEDULER_LOCATION} \
     --project=${PROJECT} \
     --schedule="*/10 * * * *" \
     --time-zone="UTC" \
@@ -52,7 +53,7 @@ gcloud scheduler jobs describe ${SCHEDULER_NAME} --location=${REGION} --project=
     --oauth-service-account-email=${SA_EMAIL} \
   || \
   gcloud scheduler jobs create http ${SCHEDULER_NAME} \
-    --location=${REGION} \
+    --location=${SCHEDULER_LOCATION} \
     --project=${PROJECT} \
     --schedule="*/10 * * * *" \
     --time-zone="UTC" \
