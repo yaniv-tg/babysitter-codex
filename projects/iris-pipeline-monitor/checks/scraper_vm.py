@@ -141,7 +141,7 @@ def check_avatar_health(
     Returns:
         Dict with per-agent stats including success_rate and last_activity.
     """
-    cmd = _powershell_encoded(f'Get-Content "{log_path}\\scheduler.jsonl" -Tail 2000')
+    cmd = _powershell_encoded(f'Get-Content "{log_path}\\scheduler.jsonl" -Tail 5000')
     try:
         output = _run_ssh_command(ssh_client, cmd, timeout=30)
     except Exception:
@@ -269,27 +269,36 @@ def check_avatar_health(
             '| Select-Object -ExpandProperty Name'
         )
         dir_output = _run_ssh_command(ssh_client, discover_cmd, timeout=15)
+        discovered_dirs = []
         if dir_output:
             for dirname in dir_output.splitlines():
                 dirname = dirname.strip()
-                if dirname and dirname not in results:
-                    results[dirname] = {
-                        "type": "Unknown",
-                        "total_sessions_24h": 0,
-                        "success_count": 0,
-                        "error_count": 0,
-                        "success_rate": None,
-                        "error_rate": None,
-                        "last_activity": None,
-                        "inactive_hours": None,
-                        "last_run_time": None,
-                        "groups_collected": None,
-                        "members_collected": None,
-                        "messages_collected": None,
-                        "source": "config_directory",
-                    }
+                if dirname:
+                    discovered_dirs.append(dirname)
+                    if dirname not in results:
+                        results[dirname] = {
+                            "type": "Unknown",
+                            "total_sessions_24h": 0,
+                            "success_count": 0,
+                            "error_count": 0,
+                            "success_rate": None,
+                            "error_rate": None,
+                            "last_activity": None,
+                            "inactive_hours": None,
+                            "last_run_time": None,
+                            "groups_collected": None,
+                            "members_collected": None,
+                            "messages_collected": None,
+                            "source": "config_directory",
+                        }
+        logger.info(
+            "Avatar discovery: %d from logs, %d config dirs found, %d total",
+            len([r for r in results.values() if r.get("source") != "config_directory"]),
+            len(discovered_dirs),
+            len(results),
+        )
     except Exception:
-        logger.warning("Failed to list avatar config directories")
+        logger.warning("Failed to list avatar config directories", exc_info=True)
 
     return results
 
