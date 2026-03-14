@@ -50,12 +50,26 @@ function runRaw(args, options = {}) {
   } catch (directErr) {
     const npxBin = resolveNpxBinary();
     const npxArgs = ['-y', DEFAULT_SDK_PKG, ...args];
-    const spawned = spawnSync(npxBin, npxArgs, {
+    let spawned = spawnSync(npxBin, npxArgs, {
       encoding: 'utf8',
       timeout,
       env,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+
+    // Some Windows shells expose npx only via cmd.exe resolution.
+    if (IS_WIN && spawned.error && spawned.status === null) {
+      const quoted = [npxBin, ...npxArgs]
+        .map((x) => (/\s/.test(x) ? `"${x}"` : x))
+        .join(' ');
+      spawned = spawnSync('cmd.exe', ['/d', '/s', '/c', quoted], {
+        encoding: 'utf8',
+        timeout,
+        env,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    }
+
     return {
       ok: spawned.status === 0,
       stdout: String(spawned.stdout || ''),
@@ -63,6 +77,7 @@ function runRaw(args, options = {}) {
       exitCode: spawned.status,
       runner: `${npxBin} ${DEFAULT_SDK_PKG}`,
       directError: directErr,
+      npxError: spawned.error || null,
     };
   }
 }

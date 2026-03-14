@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-03-13
+
+### Added
+- Stop-hook fallback decision engine at `.codex/hooks/stop-decision.js`.
+- Repository line-ending policy via `.gitattributes` (LF enforcement for shell hooks, JS, and markdown).
+- Integration guard that fails tests when hook shell scripts contain CRLF.
+- Unit coverage for stop-decision behavior (`test/harness.test.js`).
+
+### Fixed
+- Stop hook now supports SDKs that do not expose `hook:run`, while preserving conservative loop-blocking behavior.
+- Stop hook now handles missing `node` runtime gracefully and normalizes empty SDK responses to explicit approve decisions.
+- Corrected stop-decision CLI resolution to query `run:status`/`task:list` with `runId` (not duplicated run-dir path).
+- Hardened Windows SDK CLI execution by falling back through `cmd.exe /c` when direct `npx.cmd` spawn is unavailable.
+- Normalized shell hook files to LF to prevent Linux bash failures (`$'\\r': command not found`).
+
 ### Added
 - Upstream-style command documentation set under `commands/`:
   - `commands/README.md` index
