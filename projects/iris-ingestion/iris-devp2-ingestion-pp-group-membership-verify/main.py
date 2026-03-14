@@ -12,27 +12,56 @@ GCS_BUCKET_NAME = "real_time_ingestion_dev"
 MEMBER_BLOB_FILENAMES = ["group_members_All.json", "group_members_all.json"]
 
 
-def read_member_blob_from_gcs(gcs_client, origin_path: str) -> Optional[list]:
-    """Read the group members JSON blob from GCS, trying multiple filename variants."""
+def find_member_blob_in_bucket(gcs_client, scrapping_id: str) -> Optional[list]:
+    """Search all scrapped folders in the GCS bucket for a group matching scrapping_id.
+
+    The bucket structure is: {scrapped_folder}/{group_display_name}/group_members_All.json
+    We iterate scrapped folders (sorted newest first by name) and check group_info.json
+    for a matching scrapping_id (stored as 'id' field).
+    """
     bucket = gcs_client.bucket(GCS_BUCKET_NAME)
 
-    for filename in MEMBER_BLOB_FILENAMES:
-        blob_path = f"{origin_path}/{filename}".replace("//", "/")
-        blob = bucket.blob(blob_path)
+    # List top-level scrapped folders (prefixes)
+    iterator = bucket.list_blobs(delimiter='/')
+    # Consume the iterator to populate prefixes
+    _ = list(iterator)
+    prefixes = sorted(list(iterator.prefixes), reverse=True)  # newest first
 
-        if blob.exists():
-            print(f"[MembershipVerify] Found member blob at: {blob_path}")
+    for scrapped_folder in prefixes:
+        # List group sub-folders within this scrapped folder
+        sub_iterator = bucket.list_blobs(prefix=scrapped_folder, delimiter='/')
+        _ = list(sub_iterator)
+        group_prefixes = list(sub_iterator.prefixes)
+
+        for group_prefix in group_prefixes:
+            # Check group_info.json for matching scrapping_id
+            info_blob = bucket.blob(f"{group_prefix}group_info.json")
+            if not info_blob.exists():
+                continue
+
             try:
-                content = blob.download_as_text()
-                members = json.loads(content)
-                if isinstance(members, list):
-                    return members
-                else:
-                    print(f"[MembershipVerify] Blob at {blob_path} is not a JSON array")
-            except Exception as e:
-                print(f"[MembershipVerify] Failed to parse blob at {blob_path}: {e}")
+                info_content = info_blob.download_as_text()
+                info_data = json.loads(info_content)
+                group_id_in_blob = info_data.get("id", "")
+                if str(group_id_in_blob) != str(scrapping_id):
+                    continue
 
-    print(f"[MembershipVerify] No member blob found under origin_path: {origin_path}")
+                # Found matching group - try to read member blob
+                for filename in MEMBER_BLOB_FILENAMES:
+                    member_blob_path = f"{group_prefix}{filename}"
+                    member_blob = bucket.blob(member_blob_path)
+                    if member_blob.exists():
+                        print(f"[MembershipVerify] Found member blob at: {member_blob_path}")
+                        content = member_blob.download_as_text()
+                        members = json.loads(content)
+                        if isinstance(members, list):
+                            return members
+
+            except Exception as e:
+                print(f"[MembershipVerify] Error checking {group_prefix}: {e}")
+                continue
+
+    print(f"[MembershipVerify] No member blob found for scrapping_id: {scrapping_id}")
     return None
 
 
@@ -54,14 +83,15 @@ def verify_group_membership(group_id: int, db: Optional[MembershipVerifyDB] = No
 
     gcs_client = storage.Client()
 
-    # Step 1: Get origin_path
-    origin_path = db.get_group_origin_path(group_id)
-    if not origin_path:
-        print(f"[MembershipVerify] No origin_path for group {group_id}, skipping")
-        return {"verified": False, "reason": "no_gcs_data"}
+    # Step 1: Get scrapping_id for the group
+    scrapping_id = db.get_group_origin_path(group_id)
+    if not scrapping_id:
+        print(f"[MembershipVerify] No scrapping_id for group {group_id}, skipping")
+        return {"verified": False, "reason": "no_scrapping_id"}
 
-    # Step 2: Read member blob from GCS
-    gcs_members = read_member_blob_from_gcs(gcs_client, origin_path)
+    # Step 2: Search GCS bucket for member blob matching this group
+    print(f"[MembershipVerify] Searching GCS for group {group_id} (scrapping_id={scrapping_id})")
+    gcs_members = find_member_blob_in_bucket(gcs_client, scrapping_id)
     if gcs_members is None:
         print(f"[MembershipVerify] No GCS member blob for group {group_id}, skipping")
         return {"verified": False, "reason": "no_gcs_data"}
