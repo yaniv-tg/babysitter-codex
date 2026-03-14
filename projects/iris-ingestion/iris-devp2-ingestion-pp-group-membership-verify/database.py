@@ -65,32 +65,26 @@ class MembershipVerifyDB:
         )
 
     def get_group_origin_path(self, group_id: int) -> Optional[str]:
-        """Get the GCS origin_path for a group from group_application_data."""
+        """Get the GCS origin_path (scrapping_id) for a group from the entities table."""
         try:
             with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
                 query = """
-                    SELECT gad.scrapping_id, gad.origin_path
-                    FROM group_application_data gad
-                    WHERE gad.entity_id = %s AND gad.status = '1'
+                    SELECT e.scrapping_id
+                    FROM entities e
+                    WHERE e.id = %s AND e.status = '1'
                 """
                 cur.execute(query, (group_id,))
                 result = cur.fetchone()
 
                 if not result:
-                    print(f"[MembershipVerifyDB] No group_application_data found for group {group_id}")
+                    print(f"[MembershipVerifyDB] No entity found for group {group_id}")
                     return None
 
-                origin_path = result.get("origin_path")
-                if origin_path and origin_path.strip():
-                    return origin_path.strip()
-
-                # Fallback: construct from scrapping_id if origin_path is empty
                 scrapping_id = result.get("scrapping_id")
                 if scrapping_id and scrapping_id.strip():
-                    print(f"[MembershipVerifyDB] origin_path empty, using scrapping_id: {scrapping_id}")
                     return scrapping_id.strip()
 
-                print(f"[MembershipVerifyDB] No origin_path or scrapping_id for group {group_id}")
+                print(f"[MembershipVerifyDB] No scrapping_id for group {group_id}")
                 return None
 
         except Exception as e:
