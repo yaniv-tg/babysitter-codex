@@ -1,0 +1,217 @@
+import os
+import json
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Optional, Dict
+
+from google.cloud import storage
+
+from database import MembershipVerifyDB
+
+
+GCS_BUCKET_NAME = "real_time_ingestion_dev"
+MEMBER_BLOB_FILENAMES = ["group_members_All.json", "group_members_all.json"]
+
+
+def read_member_blob_from_gcs(gcs_client, origin_path: str) -> Optional[list]:
+    """Read the group members JSON blob from GCS, trying multiple filename variants."""
+    bucket = gcs_client.bucket(GCS_BUCKET_NAME)
+
+    for filename in MEMBER_BLOB_FILENAMES:
+        blob_path = f"{origin_path}/{filename}".replace("//", "/")
+        blob = bucket.blob(blob_path)
+
+        if blob.exists():
+            print(f"[MembershipVerify] Found member blob at: {blob_path}")
+            try:
+                content = blob.download_as_text()
+                members = json.loads(content)
+                if isinstance(members, list):
+                    return members
+                else:
+                    print(f"[MembershipVerify] Blob at {blob_path} is not a JSON array")
+            except Exception as e:
+                print(f"[MembershipVerify] Failed to parse blob at {blob_path}: {e}")
+
+    print(f"[MembershipVerify] No member blob found under origin_path: {origin_path}")
+    return None
+
+
+def verify_group_membership(group_id: int, db: Optional[MembershipVerifyDB] = None) -> Dict:
+    """
+    Verify group membership by comparing GCS member blob with database records.
+
+    Steps:
+    1. Get group's origin_path from DB
+    2. Read member blob from GCS
+    3. Get current DB memberships
+    4. Compare GCS members vs DB members
+    5. Add missing members, mark departed members as left
+    6. Recalculate counts for affected entities
+    7. Update last_monitoring_time from max timestamp in blob
+    """
+    if db is None:
+        db = MembershipVerifyDB()
+
+    gcs_client = storage.Client()
+
+    # Step 1: Get origin_path
+    origin_path = db.get_group_origin_path(group_id)
+    if not origin_path:
+        print(f"[MembershipVerify] No origin_path for group {group_id}, skipping")
+        return {"verified": False, "reason": "no_gcs_data"}
+
+    # Step 2: Read member blob from GCS
+    gcs_members = read_member_blob_from_gcs(gcs_client, origin_path)
+    if gcs_members is None:
+        print(f"[MembershipVerify] No GCS member blob for group {group_id}, skipping")
+        return {"verified": False, "reason": "no_gcs_data"}
+
+    # Step 3: Get current DB memberships
+    db_memberships = db.get_db_memberships(group_id)
+
+    # Step 4: Build comparison sets
+    # GCS members keyed by scrapping_id (the "id" field in the blob)
+    gcs_member_map = {}
+    for member in gcs_members:
+        sid = member.get("id")
+        if sid:
+            gcs_member_map[str(sid)] = member
+
+    gcs_scrapping_ids = set(gcs_member_map.keys())
+
+    # DB members keyed by scrapping_id
+    db_member_map = {}
+    for row in db_memberships:
+        sid = row.get("scrapping_id")
+        if sid:
+            db_member_map[str(sid)] = row
+
+    db_scrapping_ids = set(db_member_map.keys())
+
+    # Step 5: Determine adds and removals
+    to_add = gcs_scrapping_ids - db_scrapping_ids
+    to_remove = db_scrapping_ids - gcs_scrapping_ids
+    unchanged = gcs_scrapping_ids & db_scrapping_ids
+
+    added_count = 0
+    removed_count = 0
+    affected_member_ids = []
+
+    # Add members present in GCS but not in DB
+    for sid in to_add:
+        gcs_member = gcs_member_map[sid]
+        entity_id = db.lookup_entity_by_scrapping_id(sid)
+        if entity_id is None:
+            print(f"[MembershipVerify] No entity found for scrapping_id {sid}, skipping add")
+            continue
+
+        is_admin = gcs_member.get("isAdmin", False)
+        is_superadmin = gcs_member.get("isSuperAdmin", False)
+
+        success = db.add_member(group_id, entity_id, is_admin, is_superadmin)
+        if success:
+            added_count += 1
+            affected_member_ids.append(entity_id)
+            print(f"[MembershipVerify] Added member {entity_id} (scrapping_id={sid}) to group {group_id}")
+
+    # Mark members present in DB but not in GCS as left (Ingestion source only)
+    for sid in to_remove:
+        db_member = db_member_map[sid]
+        source = db_member.get("source", "")
+        if source != "Ingestion":
+            print(f"[MembershipVerify] Skipping removal of member {db_member['member_id']} "
+                  f"(source={source}, not Ingestion)")
+            continue
+
+        member_id = db_member["member_id"]
+        success = db.mark_member_left(group_id, member_id)
+        if success:
+            removed_count += 1
+            affected_member_ids.append(member_id)
+            print(f"[MembershipVerify] Marked member {member_id} (scrapping_id={sid}) as left in group {group_id}")
+
+    # Step 6: Recalculate counts for affected entities
+    counts_updated = 0
+    if affected_member_ids:
+        counts_updated = db.recalculate_counts(group_id, affected_member_ids)
+
+    # Step 7: Update last_monitoring_time from max timestamp in blob
+    monitoring_time_updated = False
+    timestamps = [m.get("timestamp") for m in gcs_members if m.get("timestamp")]
+    if timestamps:
+        max_timestamp = max(timestamps)
+        monitoring_time_updated = db.update_last_monitoring_time(group_id, max_timestamp)
+
+    result = {
+        "verified": True,
+        "added": added_count,
+        "removed": removed_count,
+        "unchanged": len(unchanged),
+        "counts_updated": counts_updated,
+        "monitoring_time_updated": monitoring_time_updated,
+    }
+
+    print(f"[MembershipVerify] Group {group_id} verification complete: {result}")
+    return result
+
+
+class RequestHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        group_id = None
+        try:
+            content_length = int(self.headers["Content-Length"])
+            post_data = self.rfile.read(content_length)
+            payload = json.loads(post_data)
+
+            group_id = payload.get("group_id", None)
+
+            db = MembershipVerifyDB()
+            result = verify_group_membership(group_id, db=db)
+
+            if result.get("verified"):
+                print(f"Membership verification completed for group {group_id}: {result}")
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "status": "OK",
+                    "message": f"Membership verification completed for group {group_id}",
+                    "data": result,
+                }).encode("utf-8"))
+            else:
+                reason = result.get("reason", "unknown")
+                print(f"Membership verification skipped for group {group_id}: {reason}")
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "status": "SKIPPED",
+                    "message": f"Membership verification skipped for group {group_id}: {reason}",
+                    "data": result,
+                }).encode("utf-8"))
+
+        except Exception as e:
+            print(f"Membership verification failed for group {group_id}: {str(e)}")
+
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "FAILED",
+                "message": f"Membership verification failed for group {group_id}: {str(e)}",
+                "data": {},
+            }).encode("utf-8"))
+
+
+def run(server_class=HTTPServer, handler_class=RequestHandler, port=8087):
+    server_address = ("", port)
+    httpd = server_class(server_address, handler_class)
+    print(f"Serving membership-verify on port {port}")
+    httpd.serve_forever()
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8087))
+    run(port=port)
