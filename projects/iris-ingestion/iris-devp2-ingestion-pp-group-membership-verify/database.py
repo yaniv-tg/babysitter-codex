@@ -113,6 +113,15 @@ class MembershipVerifyDB:
         """Add a new membership record for a member in a group."""
         try:
             with self.pool.connection() as conn, conn.cursor() as cur:
+                # Pre-check: skip if (group_id, member_id) already exists with status='1'
+                cur.execute(
+                    "SELECT 1 FROM group_memberships WHERE group_id = %s AND member_id = %s AND status = '1' LIMIT 1",
+                    (group_id, member_entity_id),
+                )
+                if cur.fetchone():
+                    print(f"[MembershipVerifyDB] Membership already exists for member {member_entity_id} in group {group_id}, skipping insert")
+                    return False
+
                 query = """
                     INSERT INTO group_memberships (
                         group_id, member_id, membership_status, status,

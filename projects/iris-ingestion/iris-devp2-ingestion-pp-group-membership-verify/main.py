@@ -111,10 +111,15 @@ def verify_group_membership(group_id: int, db: Optional[MembershipVerifyDB] = No
 
     # DB members keyed by scrapping_id
     db_member_map = {}
+    # Also track member_ids (entity IDs) already in DB to catch cross-source duplicates
+    db_member_ids = set()
     for row in db_memberships:
         sid = row.get("scrapping_id")
         if sid:
             db_member_map[str(sid)] = row
+        member_id = row.get("member_id")
+        if member_id:
+            db_member_ids.add(member_id)
 
     db_scrapping_ids = set(db_member_map.keys())
 
@@ -135,6 +140,11 @@ def verify_group_membership(group_id: int, db: Optional[MembershipVerifyDB] = No
             print(f"[MembershipVerify] No entity found for scrapping_id {sid}, skipping add")
             continue
 
+        # Skip if this member_id already exists in DB under a different source
+        if entity_id in db_member_ids:
+            print(f"[MembershipVerify] Member {entity_id} already in group {group_id} (cross-source), skipping add")
+            continue
+
         is_admin = gcs_member.get("isAdmin", False)
         is_superadmin = gcs_member.get("isSuperAdmin", False)
 
@@ -142,6 +152,7 @@ def verify_group_membership(group_id: int, db: Optional[MembershipVerifyDB] = No
         if success:
             added_count += 1
             affected_member_ids.append(entity_id)
+            db_member_ids.add(entity_id)
             print(f"[MembershipVerify] Added member {entity_id} (scrapping_id={sid}) to group {group_id}")
 
     # Mark members present in DB but not in GCS as left (Ingestion source only)
